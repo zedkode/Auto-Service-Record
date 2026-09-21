@@ -37,10 +37,10 @@ specifying it twice.
 | Phase | Tasks | DONE | REVIEW | IN_PROGRESS | READY | PARTIAL | BACKLOG |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
-| 1 — Foundation | 22 | 21 | 0 | 0 | 0 | 0 | 1 |
+| 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
 | 3–12 — Later phases | 92 | 37 | 0 | 0 | 0 | 10 | 45 |
-| **Total** | **142** | **83** | **2** | **1** | **0** | **10** | **46** |
+| **Total** | **142** | **82** | **3** | **1** | **0** | **10** | **46** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -84,14 +84,19 @@ multi-user. Roles can be changed, members removed, ownership transferred atomica
 people invited by email with an acceptance flow. `WS-007` (shared-workspace E2E coverage)
 remains, though `verify-members.mjs` already drives two real accounts end to end.
 
-**Two tracker inaccuracies found and corrected while working:** `CORE-020` (CI) is marked
-`DONE` but `.github/workflows/` is empty — **no pipeline exists**. And the repository has
-**zero commits**; everything lives in the working tree alone. Neither is a task in this
-file, which is why neither surfaced until someone looked.
+**Both tracker inaccuracies are now resolved.** The repository has its first commit — 404
+files, no secrets — and a CI workflow exists where `.github/workflows/` was empty.
+`CORE-020` is `REVIEW`, not `DONE`: its acceptance criteria require a passing run and it
+has never executed, because the push is still pending GitHub credentials. It becomes
+`DONE` on the first green run.
 
-**Next recommended task:** commit the work and build the CI pipeline `CORE-020` claims to
-have. After that, `WS-006` (per-member notification preferences) now that there are
-members to have them, `HARD-003` (document pipeline penetration review), or `OWN-006`
+Fixed on the way: three `high` advisories in `nodemailer`, a dependency this platform
+calls directly (7.0.9 → 10.0.10). The two that remain are transitive through Prisma,
+unreachable from this code, and documented with end conditions in
+`docs/security/audit-exceptions.md` rather than silently suppressed.
+
+**Next recommended task:** `WS-006` (per-member notification preferences) now that there
+are members to have them, `HARD-003` (document pipeline penetration review), or `OWN-006`
 (fuel) to finish `OWN-008`.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
@@ -717,7 +722,7 @@ assumed a single shared database is painful.
 ID:            CORE-020
 Title:         CI pipeline
 Phase:         1
-Status:        DONE
+Status:        REVIEW
 Priority:      CRITICAL
 Dependencies:  CORE-003, CORE-019
 ```
@@ -730,6 +735,14 @@ or actions cache; `main` protected on a green run; total runtime under 10 minute
 **Documentation Required:** `TESTING.md` §9.
 **Notes:** `test:isolation` and `test:e2e` join the gate in Phase 2, when there is something
 to isolate.
+
+**2026-09-22.** This task was marked `DONE` for a long time while `.github/workflows/` was
+**empty** — there was no pipeline at all. The workflow now exists (`static`, `test`,
+`audit`), with service containers for PostgreSQL 18, Redis 8, MinIO and Mailpit, and it
+runs the same gate used locally. It is `REVIEW` rather than `DONE` because the acceptance
+criteria require "a passing run", and it has never executed: the repository had no remote
+until today and the push is still pending credentials. Mark it `DONE` on the first green
+run, and only then.
 
 ---
 

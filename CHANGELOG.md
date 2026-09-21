@@ -13,6 +13,13 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Security
+- Updated the email library to close three high-severity advisories in a component this
+  platform uses directly. Two advisories remain in dependencies pulled in by the database
+  tooling; neither is reachable from this application, and both are documented with the
+  conditions that will close them.
+
+
 ### Added — Share a garage with other people
 - **Invite someone by email.** They get a link that works for 7 days, and appears under
   pending invitations until they accept it.
