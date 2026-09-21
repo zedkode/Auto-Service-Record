@@ -1,0 +1,33 @@
+{
+  "name": "@autoservices/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --enable-source-maps dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "echo 'no tests'"
+  },
+  "dependencies": {
+    "@autoservices/db": "workspace:*",
+    "@autoservices/email": "workspace:*",
+    "@autoservices/logger": "workspace:*",
+    "@autoservices/types": "workspace:*",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "bullmq": "6.3.8",
+    "dotenv": "17.2.3",
+    "ioredis": "6.0.0",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "@autoservices/eslint-config": "workspace:*",
+    "@autoservices/tsconfig": "workspace:*",
+    "@types/node": "24.10.1",
+    "eslint": "10.11.0",
+    "typescript": "7.0.2"
+  }
+}

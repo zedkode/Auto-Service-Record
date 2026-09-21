@@ -1,0 +1,24 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 12 requires native/postinstall builds to be allow-listed explicitly.
+# Keep this list minimal and deliberate — each entry runs arbitrary code at install time.
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  argon2: true
+  esbuild: true
+  '@tailwindcss/oxide': true
+  msgpackr-extract: true
+
+# Advisories that cannot be fixed here: both are transitive through Prisma and neither is
+# reachable from this codebase. Each one is justified, with an end condition, in
+# docs/security/audit-exceptions.md — an exception with no expiry is a permanent hole.
+# pnpm 12 reads this from the workspace file; the same block under `pnpm.auditConfig` in
+# package.json is silently ignored.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-ggr8-5vv4-36mx # deepmerge-ts, via prisma's config loader
+    - GHSA-3f6p-5ww8-9rcr # mysql2, bundled by the prisma CLI; this platform uses Postgres

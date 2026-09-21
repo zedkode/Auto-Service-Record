@@ -1,0 +1,215 @@
+/*
+ * AutoServices design tokens — UI_UX.md §2.
+ *
+ * Semantic names only. A component references --color-accent, never --blue-600.
+ * Light and dark are the same token set remapped, not two stylesheets.
+ */
+@import 'tailwindcss';
+
+@theme {
+  /* Type: system stack. Fast, familiar, no layout shift, no privacy-leaking CDN. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, monospace;
+
+  /* 4px base scale */
+  --spacing: 0.25rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --shadow-xs: 0 1px 2px 0 rgb(16 24 40 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(16 24 40 / 0.08), 0 1px 2px -1px rgb(16 24 40 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(16 24 40 / 0.1), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 32px -8px rgb(16 24 40 / 0.18);
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root {
+  color-scheme: light;
+
+  --surface-base: #f7f8fa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f0f2f5;
+  --surface-overlay: #ffffff;
+  --surface-inverse: #10151c;
+
+  --content-primary: #10151c;
+  --content-secondary: #4a5566;
+  --content-tertiary: #78849a;
+  --content-inverse: #ffffff;
+
+  --border-subtle: #e8ebf0;
+  --border-default: #dde1e8;
+  --border-strong: #c2c9d6;
+
+  /* A deep, slightly technical blue. Trustworthy rather than playful. */
+  --accent: #1f5fd0;
+  --accent-hover: #1a4fb0;
+  --accent-active: #164395;
+  --accent-subtle: #eef3fd;
+  --accent-border: #c6daf8;
+
+  --status-healthy: #0f7b52;
+  --status-healthy-subtle: #e6f5ee;
+  --status-due-soon: #9a6400;
+  --status-due-soon-subtle: #fdf3e0;
+  --status-attention: #b34a00;
+  --status-attention-subtle: #fdeee2;
+  --status-overdue: #b3261e;
+  --status-overdue-subtle: #fdeceb;
+  --status-neutral: #616c7f;
+  --status-neutral-subtle: #f0f2f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --surface-base: #0d1117;
+    --surface-raised: #151b23;
+    --surface-sunken: #10161d;
+    --surface-overlay: #1a212b;
+    --surface-inverse: #f7f8fa;
+
+    --content-primary: #e8ecf2;
+    --content-secondary: #a2aebf;
+    --content-tertiary: #737f92;
+    --content-inverse: #10151c;
+
+    --border-subtle: #212a35;
+    --border-default: #2b3542;
+    --border-strong: #3d4958;
+
+    --accent: #5b92ea;
+    --accent-hover: #74a3ef;
+    --accent-active: #8fb5f3;
+    --accent-subtle: #16233a;
+    --accent-border: #27405f;
+
+    --status-healthy: #4ec98d;
+    --status-healthy-subtle: #10281f;
+    --status-due-soon: #e0ad4e;
+    --status-due-soon-subtle: #2b2113;
+    --status-attention: #f08b4e;
+    --status-attention-subtle: #2e1d12;
+    --status-overdue: #f2726a;
+    --status-overdue-subtle: #2e1614;
+    --status-neutral: #8b97a8;
+    --status-neutral-subtle: #1b222c;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --surface-base: #0d1117;
+  --surface-raised: #151b23;
+  --surface-sunken: #10161d;
+  --surface-overlay: #1a212b;
+  --surface-inverse: #f7f8fa;
+  --content-primary: #e8ecf2;
+  --content-secondary: #a2aebf;
+  --content-tertiary: #737f92;
+  --content-inverse: #10151c;
+  --border-subtle: #212a35;
+  --border-default: #2b3542;
+  --border-strong: #3d4958;
+  --accent: #5b92ea;
+  --accent-hover: #74a3ef;
+  --accent-active: #8fb5f3;
+  --accent-subtle: #16233a;
+  --accent-border: #27405f;
+  --status-healthy: #4ec98d;
+  --status-healthy-subtle: #10281f;
+  --status-due-soon: #e0ad4e;
+  --status-due-soon-subtle: #2b2113;
+  --status-attention: #f08b4e;
+  --status-attention-subtle: #2e1d12;
+  --status-overdue: #f2726a;
+  --status-overdue-subtle: #2e1614;
+  --status-neutral: #8b97a8;
+  --status-neutral-subtle: #1b222c;
+}
+
+@theme inline {
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-inverse: var(--surface-inverse);
+
+  --color-content-primary: var(--content-primary);
+  --color-content-secondary: var(--content-secondary);
+  --color-content-tertiary: var(--content-tertiary);
+  --color-content-inverse: var(--content-inverse);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-border: var(--accent-border);
+
+  --color-status-healthy: var(--status-healthy);
+  --color-status-healthy-subtle: var(--status-healthy-subtle);
+  --color-status-due-soon: var(--status-due-soon);
+  --color-status-due-soon-subtle: var(--status-due-soon-subtle);
+  --color-status-attention: var(--status-attention);
+  --color-status-attention-subtle: var(--status-attention-subtle);
+  --color-status-overdue: var(--status-overdue);
+  --color-status-overdue-subtle: var(--status-overdue-subtle);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-neutral-subtle: var(--status-neutral-subtle);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface-base);
+    color: var(--content-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numbers that sit in columns must align. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--accent-subtle);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

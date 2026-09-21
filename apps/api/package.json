@@ -1,0 +1,50 @@
+{
+  "name": "@autoservices/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --enable-source-maps dist/main.js",
+    "dev:build": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:unit": "vitest run src",
+    "test:isolation": "vitest run test/isolation"
+  },
+  "dependencies": {
+    "@autoservices/auth": "workspace:*",
+    "@autoservices/config": "workspace:*",
+    "@autoservices/db": "workspace:*",
+    "@autoservices/email": "workspace:*",
+    "@autoservices/logger": "workspace:*",
+    "@autoservices/permissions": "workspace:*",
+    "@autoservices/types": "workspace:*",
+    "@autoservices/validation": "workspace:*",
+    "@fastify/cookie": "11.0.2",
+    "@fastify/cors": "11.1.0",
+    "@nestjs/common": "12.0.3",
+    "@nestjs/core": "12.0.3",
+    "@nestjs/platform-fastify": "12.0.3",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "bullmq": "6.3.8",
+    "dotenv": "17.2.3",
+    "fastify": "5.12.5",
+    "ioredis": "6.0.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.5",
+    "@autoservices/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@autoservices/eslint-config": "workspace:*",
+    "@autoservices/tsconfig": "workspace:*",
+    "@types/node": "24.10.1",
+    "eslint": "10.11.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}

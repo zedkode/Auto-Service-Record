@@ -1,0 +1,6 @@
+{
+  "extends": "@autoservices/tsconfig/nest.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src" },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "src/**/*.test.ts"]
+}

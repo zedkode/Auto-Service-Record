@@ -1,0 +1,36 @@
+/** English catalogue for the redesigned dashboard; ready for locale selection. */
+export const dashboardCopy = {
+  readOnlyEmpty:
+    'No vehicles have been added to this workspace yet. An owner, admin or editor can add one.',
+  skipNavigation: 'Skip to content',
+  eyebrow: 'YOUR GARAGE, AT A GLANCE',
+  overview: 'Garage overview',
+  vehicles: 'Your vehicles',
+  vehiclesDescription: 'Mileage, maintenance and history, all in one place.',
+  activity: 'Recent activity',
+  activityDescription: 'The latest updates from your garage.',
+  noActivity: 'Your vehicle history starts here',
+  noActivityDescription: 'Add a vehicle or record a service to see its history here.',
+  error: 'Could not load your garage overview. Please try again.',
+  servicesHint: 'Based on tracked maintenance',
+  vehicleHint: 'In this workspace',
+  attentionHint: 'Items to review',
+  attention: 'Attention required',
+  add: 'Add vehicle',
+  addFirst: 'Add your first vehicle',
+  viewAll: 'View all vehicles',
+  noVehicles: 'Make room for your first vehicle',
+  noVehiclesDescription:
+    'Keep its service history, mileage and maintenance together. Start by adding your vehicle.',
+  vehiclesError: 'Could not load vehicles.',
+  clear: 'Nothing needs your attention right now.',
+  notTracked: 'Nothing recorded yet',
+  mixedCurrencies: 'Recorded in more than one currency',
+  statsVehicles: 'Vehicles',
+  statsAttention: 'Needs attention',
+  statsServices: 'Services due',
+  statsSpend: 'Spend this month',
+  workspace: (name: string) => `An overview of ${name}.`,
+  attentionCount: (count: number) =>
+    `${count} ${count === 1 ? 'item needs' : 'items need'} looking at.`,
+} as const

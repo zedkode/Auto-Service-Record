@@ -1,0 +1,34 @@
+{
+  "name": "@autoservices/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port ${ADMIN_PORT:-3102} --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port ${ADMIN_PORT:-3102}",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "echo 'no tests'"
+  },
+  "dependencies": {
+    "@autoservices/api-client": "workspace:*",
+    "@autoservices/ui": "workspace:*",
+    "@tanstack/react-query": "5.103.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "8.4.0"
+  },
+  "devDependencies": {
+    "@autoservices/tsconfig": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "@autoservices/eslint-config": "workspace:*",
+    "eslint": "10.11.0"
+  }
+}

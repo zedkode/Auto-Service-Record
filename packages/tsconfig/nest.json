@@ -1,0 +1,10 @@
+{
+  "extends": "./node.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "declaration": false,
+    "declarationMap": false
+  }
+}

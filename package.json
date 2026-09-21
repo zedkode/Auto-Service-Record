@@ -1,0 +1,43 @@
+{
+  "name": "autoservices",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=26.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:all": "node scripts/dev-all.mjs",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:isolation": "pnpm --filter @autoservices/api test:isolation",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,css}\"",
+    "db:generate": "pnpm --filter @autoservices/db generate",
+    "db:migrate": "pnpm --filter @autoservices/db migrate",
+    "db:migrate:dev": "pnpm --filter @autoservices/db migrate:dev",
+    "db:seed": "pnpm --filter @autoservices/db seed",
+    "db:reset": "pnpm --filter @autoservices/db reset",
+    "db:studio": "pnpm --filter @autoservices/db studio",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "postinstall": "pnpm --filter @autoservices/db generate",
+    "lint:fix": "turbo run lint -- --fix"
+  },
+  "devDependencies": {
+    "bullmq": "^6.3.8",
+    "dotenv": "^18.0.1",
+    "eslint": "10.11.0",
+    "ioredis": "^6.0.0",
+    "playwright": "1.63.0",
+    "prettier": "3.6.2",
+    "turbo": "2.11.2",
+    "typescript": "7.0.2"
+  }
+}

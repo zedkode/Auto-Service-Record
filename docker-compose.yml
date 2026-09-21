@@ -1,0 +1,105 @@
+# AutoServices — local development infrastructure
+#
+# Host ports are deliberately non-default (5xxxx block) so this stack cannot collide
+# with other projects already running Postgres/Redis/MinIO/Mailpit on this machine.
+# Container-internal ports remain standard. Override via .env if needed.
+#
+#   docker compose up -d
+#
+name: autoservices
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    container_name: autoservices-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autoservices
+      POSTGRES_PASSWORD: autoservices
+      POSTGRES_DB: autoservices
+      # Deterministic collation so ORDER BY is stable across machines
+      POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=en-GB --encoding=UTF8'
+    ports:
+      - '${POSTGRES_PORT:-55432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infrastructure/docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U autoservices -d autoservices']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:8.8.2-alpine
+    container_name: autoservices-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    ports:
+      - '${REDIS_PORT:-56379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: autoservices-minio
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '${MINIO_PORT:-59000}:9000'
+      - '${MINIO_CONSOLE_PORT:-59001}:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Creates the private bucket on first start. Private is not the default — it is set here
+  # deliberately. A local habit of public buckets becomes a production breach.
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: autoservices-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/autoservices &&
+      mc anonymous set none local/autoservices &&
+      echo 'MinIO bucket autoservices ready (private)';
+      "
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit:v1.31.0
+    container_name: autoservices-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - '${MAILPIT_SMTP_PORT:-51025}:1025'
+      - '${MAILPIT_UI_PORT:-58025}:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

@@ -1,0 +1,36 @@
+{
+  "name": "@autoservices/email",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@autoservices/logger": "workspace:*",
+    "@autoservices/types": "workspace:*",
+    "nodemailer": "10.0.10",
+    "resend": "6.28.1"
+  },
+  "devDependencies": {
+    "@autoservices/eslint-config": "workspace:*",
+    "@autoservices/tsconfig": "workspace:*",
+    "@types/node": "24.10.1",
+    "@types/nodemailer": "8.0.2",
+    "eslint": "10.11.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}

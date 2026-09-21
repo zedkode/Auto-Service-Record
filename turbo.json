@@ -1,0 +1,65 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": [".env"],
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "TEST_DATABASE_URL",
+    "REDIS_URL",
+    "API_PORT",
+    "MARKETING_PORT",
+    "DASHBOARD_PORT",
+    "ADMIN_PORT",
+    "API_URL",
+    "APP_URL",
+    "MARKETING_URL",
+    "ADMIN_URL",
+    "SESSION_SECRET",
+    "IP_HASH_SALT",
+    "LOG_LEVEL",
+    "MAIL_TRANSPORT",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "RESEND_API_KEY",
+    "RESEND_WEBHOOK_SECRET",
+    "MAIL_FROM_EMAIL",
+    "MAIL_FROM_NAME",
+    "S3_ENDPOINT",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY",
+    "S3_SECRET_KEY",
+    "S3_REGION",
+    "DEV_AUTH_ENABLED",
+    "VITE_API_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**", ".vite/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "generate": {
+      "cache": false
+    }
+  }
+}

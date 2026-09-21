@@ -1,0 +1,12 @@
+{
+  "extends": "@autoservices/tsconfig/base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "lib": ["ES2023", "DOM"],
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/**/*"]
+}

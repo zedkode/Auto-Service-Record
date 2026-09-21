@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Environment — only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# Local infrastructure volumes
+.docker-data/

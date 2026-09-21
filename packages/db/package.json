@@ -1,0 +1,48 @@
+{
+  "name": "@autoservices/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "reset": "prisma migrate reset --force",
+    "seed": "node --experimental-strip-types prisma/seed.ts",
+    "studio": "prisma studio",
+    "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@autoservices/auth": "workspace:*",
+    "@autoservices/types": "workspace:*",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "7.10.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@autoservices/tsconfig": "workspace:*",
+    "@types/node": "24.10.1",
+    "@types/pg": "^8.23.1",
+    "dotenv": "^18.0.1",
+    "prisma": "7.10.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1",
+    "@autoservices/eslint-config": "workspace:*",
+    "eslint": "10.11.0"
+  },
+  "prisma": {
+    "seed": "node --experimental-strip-types prisma/seed.ts"
+  }
+}

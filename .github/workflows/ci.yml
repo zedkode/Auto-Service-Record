@@ -1,0 +1,202 @@
+# CORE-020 — the gate every pull request must pass.
+#
+# Ordered cheapest-first so a formatting slip fails in seconds rather than after the
+# integration suite has spun up four service containers.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  # A new push supersedes the run in flight for the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '26'
+  PNPM_VERSION: '12.5.1'
+
+jobs:
+  static:
+    name: Format, lint, types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          # pnpm 12 blocks build scripts unless allowed; the repo declares its own
+          # allowBuilds list, so install must not be run with --ignore-scripts here.
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-static-${{ github.sha }}
+          restore-keys: turbo-static-
+
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  test:
+    name: Tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # uuidv7() is a PostgreSQL 18 function and citext/pg_trgm are required by the
+        # first migration, so the version here is not interchangeable.
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: autoservices
+          POSTGRES_PASSWORD: autoservices
+          POSTGRES_DB: autoservices
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U autoservices"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:8.8.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      minio:
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "mc ready local || curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      mailpit:
+        image: axllent/mailpit:v1.31.0
+        ports: ['1025:1025', '8025:8025']
+
+    env:
+      DATABASE_URL: postgresql://autoservices:autoservices@localhost:5432/autoservices
+      REDIS_URL: redis://localhost:6379
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: autoservices
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      MAIL_TRANSPORT: smtp
+      MAILPIT_UI_PORT: '8025'
+      # CI-only values. Real secrets never appear in this file or in the repository.
+      SESSION_SECRET: ci-session-secret-at-least-32-characters-long
+      RESEND_WEBHOOK_SECRET: whsec_Y2ktd2ViaG9vay1zZWNyZXQtZm9yLXRlc3Rpbmc=
+      APP_URL: http://localhost:3101
+      RATE_LIMIT_ENABLED: 'false'
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-test-${{ github.sha }}
+          restore-keys: turbo-test-
+
+      - name: Create the object storage bucket
+        run: |
+          curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
+          chmod +x /usr/local/bin/mc
+          mc alias set ci http://localhost:9000 minioadmin minioadmin
+          mc mb --ignore-existing ci/autoservices
+          # Private, like production. A public bucket would make the document tests pass
+          # for the wrong reason.
+          mc anonymous set none ci/autoservices
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Seed reference data
+        # The integration suite expects the system service and expense categories.
+        run: pnpm db:seed
+
+      - name: Unit and integration tests
+        run: pnpm test
+
+      - name: Cross-tenant isolation suite
+        # Kept as its own step: a failure here is a security failure, and the log should
+        # say so without anyone reading a combined output.
+        run: pnpm test:isolation
+
+      - name: Build
+        run: pnpm build
+
+  audit:
+    name: Dependency audit and secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Gitleaks needs history to scan commits, not just the working tree.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        # High and above blocks the merge; anything lower is reported and triaged.
+        run: pnpm audit --audit-level high
+
+      - name: Scan for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

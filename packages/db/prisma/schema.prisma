@@ -1,0 +1,1411 @@
+// AutoServices — database schema
+// Source of truth for the data model: DATABASE.md
+//
+// INVARIANTS ENFORCED HERE:
+//  1. Every tenant-owned model carries `workspaceId`. The tenant client extension in
+//     src/tenant-client.ts derives its protected-model set from that field, so adding it
+//     opts a model into isolation automatically (DECISIONS.md D-009).
+//  2. Tenant-owned children reference their parent by the COMPOSITE key (id, workspaceId),
+//     so PostgreSQL itself rejects a cross-workspace parent/child pair (DATABASE.md §3).
+//  3. onDelete: Restrict is the default. Cascades are opt-in, per relation, with a reason.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  PENDING_VERIFICATION
+  SUSPENDED
+  DELETION_REQUESTED
+  DELETED
+}
+
+enum WorkspaceType {
+  PERSONAL
+  FAMILY
+  BUSINESS
+  FLEET
+  CLUB
+  OTHER
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  DRIVER
+  VIEWER
+}
+
+enum MemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
+enum VehicleStatus {
+  ACTIVE
+  STORED
+  SOLD
+  SCRAPPED
+  ARCHIVED
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  HYBRID
+  PLUGIN_HYBRID
+  ELECTRIC
+  LPG
+  CNG
+  HYDROGEN
+  OTHER
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+  SEMI_AUTOMATIC
+  CVT
+  DCT
+  OTHER
+}
+
+enum Drivetrain {
+  FWD
+  RWD
+  AWD
+  FOUR_WD
+  OTHER
+}
+
+enum DistanceUnit {
+  MILES
+  KILOMETERS
+}
+
+enum OdometerSource {
+  MANUAL
+  SERVICE
+  FUEL
+  INSPECTION
+  IMPORT
+  API
+}
+
+enum MaintenanceStatus {
+  OK
+  DUE_SOON
+  DUE
+  OVERDUE
+}
+
+enum MaintenanceIntervalType {
+  TIME_BASED
+  DISTANCE_BASED
+  COMBINED
+}
+
+enum ReminderSourceType {
+  MAINTENANCE
+  INSPECTION
+  INSURANCE
+  TAX
+  WARRANTY
+  DOCUMENT
+  SERVICE
+  TYRE
+  ODOMETER_STALE
+  CUSTOM
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  DUE
+  SENT
+  SNOOZED
+  DISMISSED
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  // Declared from day one; no transport registered yet (ARCHITECTURE.md §9).
+  PUSH
+  SMS
+  WHATSAPP
+}
+
+enum NotificationCategory {
+  ACCOUNT
+  SECURITY
+  MAINTENANCE
+  INSPECTION
+  INSURANCE
+  TAX
+  WARRANTY
+  DOCUMENT
+  DIGEST
+  PRODUCT_UPDATES
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Why an address is refused. A complaint is the most serious: re-sending to someone who
+/// pressed "this is spam" is what gets a sending domain blocked.
+/// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
+/// country's inspection regime is a new enum member, not a new table.
+/// Where an expense came from. Anything other than MANUAL is a *projection* of another
+/// record, kept in step with it automatically (DATABASE.md §4.8).
+/// What a support grant opens. Deliberately coarse: a scope nobody can explain is a scope
+/// nobody reviews.
+enum SupportAccessScope {
+  /// Vehicle records, service history, mileage, ownership records.
+  VEHICLE_CONTENT
+  /// Document metadata and the ability to open a stored file.
+  DOCUMENTS
+  /// Both of the above.
+  FULL
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  OPERATIONS
+  SUPPORT
+  BILLING
+  READ_ONLY
+}
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+  /// Enrolled but has not completed 2FA setup, so cannot yet sign in.
+  PENDING_MFA
+}
+
+enum DocumentStatus {
+  /// Row exists, object not yet confirmed. Never served.
+  PENDING
+  AVAILABLE
+  /// Failed a scan. Never served, and kept so the incident is investigable.
+  QUARANTINED
+  DELETED
+}
+
+enum DocumentScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  /// No scanner configured. Honest about the gap rather than claiming CLEAN.
+  SKIPPED
+}
+
+enum DocumentType {
+  INVOICE
+  RECEIPT
+  INSURANCE_POLICY
+  INSPECTION_CERTIFICATE
+  REGISTRATION
+  WARRANTY
+  MANUAL
+  PHOTO
+  OTHER
+}
+
+/// What a document is attached to. Polymorphic because a receipt belongs to a service,
+/// a certificate to an inspection, and a photo to nothing in particular.
+enum DocumentAttachmentType {
+  VEHICLE
+  SERVICE_RECORD
+  VEHICLE_INSPECTION
+  INSURANCE_POLICY
+  ROAD_TAX_RECORD
+  EXPENSE
+}
+
+enum ExpenseSourceType {
+  MANUAL
+  SERVICE
+  FUEL
+  INSURANCE
+  TAX
+  OTHER
+}
+
+enum InspectionType {
+  MOT
+  ITP
+  TUV
+  CT
+  STATE_INSPECTION
+  EMISSIONS
+  OTHER
+}
+
+enum InspectionResult {
+  PASS
+  PASS_WITH_ADVISORIES
+  FAIL
+  UNKNOWN
+}
+
+/// An advisory is a warning noted at inspection that did not fail the vehicle. Severity
+/// drives how loudly the product asks about it.
+enum AdvisorySeverity {
+  MINOR
+  MAJOR
+  DANGEROUS
+}
+
+enum PaymentFrequency {
+  ONE_OFF
+  MONTHLY
+  QUARTERLY
+  BIANNUAL
+  ANNUAL
+}
+
+enum PolicyRenewalType {
+  MANUAL
+  AUTOMATIC
+  UNKNOWN
+}
+
+enum EmailSuppressionReason {
+  HARD_BOUNCE
+  COMPLAINT
+  MANUAL
+}
+
+enum EmailStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  DELAYED
+  BOUNCED
+  COMPLAINED
+  FAILED
+  SUPPRESSED
+}
+
+enum AuditActorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email           String     @unique @db.Citext
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash    String     @map("password_hash")
+  status          UserStatus @default(PENDING_VERIFICATION)
+
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(6)
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile            UserProfile?
+  sessions           Session[]
+  verificationTokens EmailVerificationToken[]
+  resetTokens        PasswordResetToken[]
+  memberships        WorkspaceMember[]
+  ownedWorkspaces    Workspace[]              @relation("WorkspaceOwner")
+  odometerEntries    OdometerEntry[]
+  auditLogs          AuditLog[]
+  serviceRecords     ServiceRecord[]
+  reminders              Reminder[]
+  notifications          Notification[]
+  notificationPreferences NotificationPreference[]
+  notificationDeliveries  NotificationDelivery[]
+  emailMessages           EmailMessage[]
+  inspections             VehicleInspection[]
+  insurancePolicies       InsurancePolicy[]
+  roadTaxRecords          RoadTaxRecord[]
+  expenses                Expense[]
+  documents               Document[]
+
+  @@index([status])
+  @@map("users")
+}
+
+model UserProfile {
+  userId String @id @map("user_id") @db.Uuid
+
+  displayName            String       @map("display_name")
+  timezone               String       @default("Europe/London")
+  locale                 String       @default("en-GB")
+  preferredDistanceUnit  DistanceUnit @default(MILES) @map("preferred_distance_unit")
+  preferredCurrency      String       @default("GBP") @map("preferred_currency") @db.Char(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Cascade: a profile has no meaning without its user.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Session {
+  id     String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  // Only the SHA-256 hash is stored. A database leak yields no usable sessions.
+  tokenHash String  @unique @map("token_hash")
+  userAgent String? @map("user_agent")
+  ipHash    String? @map("ip_hash")
+
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt   DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason String?  @map("revoked_reason")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+model Workspace {
+  id   String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name String
+  slug String        @unique
+  type WorkspaceType @default(PERSONAL)
+
+  ownerUserId String @map("owner_user_id") @db.Uuid
+
+  defaultCurrency     String       @default("GBP") @map("default_currency") @db.Char(3)
+  defaultDistanceUnit DistanceUnit @default(MILES) @map("default_distance_unit")
+  timezone            String       @default("Europe/London")
+
+  storageUsedBytes BigInt @default(0) @map("storage_used_bytes")
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner       User                  @relation("WorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  members           WorkspaceMember[]
+  invitations       WorkspaceInvitation[]
+  vehicles          Vehicle[]
+  auditLogs         AuditLog[]
+  serviceCategories ServiceCategory[]
+  expenseCategories ExpenseCategory[]
+  supportGrants     SupportAccessGrant[]
+  reminders         Reminder[]
+  notifications     Notification[]
+  notificationPreferences NotificationPreference[]
+  notificationDeliveries  NotificationDelivery[]
+  emailMessages           EmailMessage[]
+
+  @@index([ownerUserId])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+
+  role   WorkspaceRole @default(VIEWER)
+  status MemberStatus  @default(ACTIVE)
+
+  invitedByUserId String?   @map("invited_by_user_id") @db.Uuid
+  joinedAt        DateTime? @map("joined_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId, status])
+  @@map("workspace_members")
+}
+
+model WorkspaceInvitation {
+  id          String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  email       String        @db.Citext
+  role        WorkspaceRole @default(VIEWER)
+
+  tokenHash       String    @unique @map("token_hash")
+  invitedByUserId String    @map("invited_by_user_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([email])
+  @@map("workspace_invitations")
+}
+
+// ---------------------------------------------------------------------------
+// Vehicles
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  manufacturer String
+  model        String
+  generation   String?
+  modelYear    Int?    @map("model_year")
+  trim         String?
+
+  registrationNumber String? @map("registration_number")
+  vin                String?
+
+  engineName     String?       @map("engine_name")
+  engineCode     String?       @map("engine_code")
+  displacementCc Int?          @map("displacement_cc")
+  powerKw        Int?          @map("power_kw")
+  fuelType       FuelType?     @map("fuel_type")
+  transmission   Transmission?
+  drivetrain     Drivetrain?
+  bodyType       String?       @map("body_type")
+  colour         String?
+
+  firstRegisteredOn DateTime? @map("first_registered_on") @db.Date
+  purchasedOn       DateTime? @map("purchased_on") @db.Date
+  purchaseOdometer  Int?      @map("purchase_odometer")
+  purchasePrice     Decimal?  @map("purchase_price") @db.Decimal(14, 2)
+  purchaseCurrency  String?   @map("purchase_currency") @db.Char(3)
+  soldOn            DateTime? @map("sold_on") @db.Date
+  salePrice         Decimal?  @map("sale_price") @db.Decimal(14, 2)
+  saleCurrency      String?   @map("sale_currency") @db.Char(3)
+
+  // Cached derivation of the newest odometer entry. Never the source of truth.
+  currentOdometer     Int?          @map("current_odometer")
+  currentOdometerUnit DistanceUnit? @map("current_odometer_unit")
+  currentOdometerAt   DateTime?     @map("current_odometer_at") @db.Date
+
+  distanceUnit DistanceUnit  @default(MILES) @map("distance_unit")
+  status       VehicleStatus @default(ACTIVE)
+
+  primaryImageId String? @map("primary_image_id") @db.Uuid
+  notes          String?
+  externalRefs   Json?   @map("external_refs")
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  odometerEntries  OdometerEntry[]
+  images           VehicleImage[]
+  serviceRecords   ServiceRecord[]
+  maintenanceRules MaintenanceRule[]
+  reminders        Reminder[]
+  inspections      VehicleInspection[]
+  insurancePolicies InsurancePolicy[]
+  roadTaxRecords   RoadTaxRecord[]
+  expenses         Expense[]
+  documents        Document[]
+
+  // Composite key that tenant-owned children reference. This is what lets PostgreSQL
+  // reject a child row whose workspace disagrees with its parent's.
+  @@unique([id, workspaceId], map: "vehicles_id_workspace_uk")
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  // Trigram indexes for partial/fuzzy lookup of registration, VIN, make and model
+  // (ADR-009). Declared here rather than in raw SQL so Prisma manages them and does not
+  // treat them as drift — an earlier raw-SQL version was silently dropped by a later
+  // `migrate dev` (DECISIONS.md D-036).
+  @@index([manufacturer(ops: raw("gin_trgm_ops"))], type: Gin, map: "vehicles_manufacturer_trgm_idx")
+  @@index([model(ops: raw("gin_trgm_ops"))], type: Gin, map: "vehicles_model_trgm_idx")
+  @@index([registrationNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "vehicles_registration_trgm_idx")
+  @@index([vin(ops: raw("gin_trgm_ops"))], type: Gin, map: "vehicles_vin_trgm_idx")
+  @@map("vehicles")
+}
+
+model VehicleImage {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  storageKey       String  @map("storage_key")
+  originalFilename String? @map("original_filename")
+  contentType      String? @map("content_type")
+  byteSize         Int?    @map("byte_size")
+  sortOrder        Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Composite FK — cross-workspace pairing is rejected by the database.
+  // Cascade: an image has no meaning without its vehicle, and carries no history.
+  vehicle Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@index([workspaceId, vehicleId])
+  @@map("vehicle_images")
+}
+
+model OdometerEntry {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  value Int
+  unit  DistanceUnit
+
+  recordedOn     DateTime       @map("recorded_on") @db.Date
+  source         OdometerSource @default(MANUAL)
+  sourceRecordId String?        @map("source_record_id") @db.Uuid
+
+  isCorrection     Boolean @default(false) @map("is_correction")
+  correctionReason String? @map("correction_reason")
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+  notes           String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Restrict: mileage history is evidence. It is never removed by deleting a vehicle.
+  vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, recordedOn(sort: Desc), value(sort: Desc)])
+  @@index([workspaceId, vehicleId])
+  @@map("odometer_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Platform
+// ---------------------------------------------------------------------------
+
+
+model VehicleInspection {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  inspectionType InspectionType   @map("inspection_type")
+  result         InspectionResult @default(UNKNOWN)
+
+  /// Calendar dates, never timestamps: an MOT expiring on 2026-11-30 expires on that
+  /// date in every timezone (DATABASE.md §12).
+  performedOn DateTime  @map("performed_on") @db.Date
+  expiresOn   DateTime? @map("expires_on") @db.Date
+
+  odometer     Int?
+  odometerUnit DistanceUnit? @map("odometer_unit")
+
+  contactId         String? @map("contact_id") @db.Uuid
+  centreName        String? @map("centre_name")
+  certificateNumber String? @map("certificate_number")
+  notes             String?
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  advisories InspectionAdvisory[]
+
+  @@unique([id, workspaceId], map: "vehicle_inspections_id_workspace_uk")
+  @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
+  /// Partial index: the reminder scan only ever asks for rows that expire.
+  @@index([expiresOn], map: "vehicle_inspections_expires_on_idx")
+  @@map("vehicle_inspections")
+}
+
+model InspectionAdvisory {
+  id           String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId  String @map("workspace_id") @db.Uuid
+  inspectionId String @map("inspection_id") @db.Uuid
+
+  severity AdvisorySeverity
+  text     String
+
+  isResolved              Boolean   @default(false) @map("is_resolved")
+  resolvedAt              DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedServiceRecordId String?   @map("resolved_service_record_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  inspection            VehicleInspection @relation(fields: [inspectionId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  resolvedServiceRecord ServiceRecord?    @relation(fields: [resolvedServiceRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "inspection_advisories_id_workspace_uk")
+  @@index([workspaceId, inspectionId])
+  @@index([workspaceId, isResolved])
+  @@map("inspection_advisories")
+}
+
+model InsurancePolicy {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  contactId    String? @map("contact_id") @db.Uuid
+  providerName String  @map("provider_name")
+  policyNumber String? @map("policy_number")
+  coverType    String? @map("cover_type")
+
+  startsOn  DateTime  @map("starts_on") @db.Date
+  expiresOn DateTime? @map("expires_on") @db.Date
+
+  /// Decimal, never float: these are money (AGENTS.md §2).
+  premiumAmount    Decimal?          @map("premium_amount") @db.Decimal(14, 2)
+  excessAmount     Decimal?          @map("excess_amount") @db.Decimal(14, 2)
+  currency         String            @default("GBP") @db.Char(3)
+  paymentFrequency PaymentFrequency? @map("payment_frequency")
+  renewalType      PolicyRenewalType @default(UNKNOWN) @map("renewal_type")
+
+  coverageNotes String? @map("coverage_notes")
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "insurance_policies_id_workspace_uk")
+  @@index([workspaceId, vehicleId, startsOn(sort: Desc)])
+  @@index([expiresOn], map: "insurance_policies_expires_on_idx")
+  @@map("insurance_policies")
+}
+
+model RoadTaxRecord {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  /// ISO 3166-1 alpha-2. Keeps the model from being UK-shaped (DATABASE.md §4.7).
+  countryCode String  @default("GB") @map("country_code") @db.Char(2)
+  taxType     String? @map("tax_type")
+  reference   String?
+
+  startsOn  DateTime  @map("starts_on") @db.Date
+  expiresOn DateTime? @map("expires_on") @db.Date
+
+  amount           Decimal?          @db.Decimal(14, 2)
+  currency         String            @default("GBP") @db.Char(3)
+  paymentFrequency PaymentFrequency? @map("payment_frequency")
+
+  notes String?
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "road_tax_records_id_workspace_uk")
+  @@index([workspaceId, vehicleId, startsOn(sort: Desc)])
+  @@index([expiresOn], map: "road_tax_records_expires_on_idx")
+  @@map("road_tax_records")
+}
+
+
+model ExpenseCategory {
+  id String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// NULL for the built-in catalogue shared by every workspace.
+  workspaceId String? @map("workspace_id") @db.Uuid
+
+  key       String
+  name      String
+  isSystem  Boolean @default(false) @map("is_system")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  expenses  Expense[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+  @@map("expense_categories")
+}
+
+/// The single cost surface. Reports read this table and nothing else, so a service must
+/// never be counted both directly and through its projection (DATABASE.md §4.8).
+model Expense {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String  @map("workspace_id") @db.Uuid
+  /// Nullable: a workspace-level cost (a tow subscription, say) belongs to no vehicle.
+  vehicleId   String? @map("vehicle_id") @db.Uuid
+  categoryId  String? @map("category_id") @db.Uuid
+
+  incurredOn DateTime @map("incurred_on") @db.Date
+  amount     Decimal  @db.Decimal(14, 2)
+  currency   String   @default("GBP") @db.Char(3)
+
+  vendorName String? @map("vendor_name")
+  contactId  String? @map("contact_id") @db.Uuid
+
+  odometer     Int?
+  odometerUnit DistanceUnit? @map("odometer_unit")
+
+  description String?
+
+  sourceType     ExpenseSourceType @default(MANUAL) @map("source_type")
+  /// The row this expense projects. Unique with sourceType, so re-projecting the same
+  /// service updates one row instead of adding a duplicate every time it is edited.
+  sourceRecordId String?           @map("source_record_id") @db.Uuid
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle?         @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdByUser User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "expenses_id_workspace_uk")
+  @@unique([sourceType, sourceRecordId], map: "expenses_source_uk")
+  @@index([workspaceId, incurredOn(sort: Desc)])
+  @@index([workspaceId, vehicleId, incurredOn(sort: Desc)])
+  @@index([workspaceId, categoryId])
+  @@map("expenses")
+}
+
+
+model Document {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String  @map("workspace_id") @db.Uuid
+  vehicleId   String? @map("vehicle_id") @db.Uuid
+
+  uploadedByUserId String? @map("uploaded_by_user_id") @db.Uuid
+
+  /// `workspaces/{workspaceId}/{yyyy}/{mm}/{uuidv7}{ext}` — tenant-namespaced and
+  /// unguessable. Unique so two rows can never point at one object.
+  storageKey       String @unique @map("storage_key")
+  originalFilename String @map("original_filename")
+  contentType      String @map("content_type")
+  byteSize         Int    @map("byte_size")
+  /// Declared by the client, then verified against the stored object before the row is
+  /// promoted to AVAILABLE.
+  checksumSha256   String? @map("checksum_sha256")
+
+  documentType DocumentType @default(OTHER) @map("document_type")
+  title        String?
+  documentDate DateTime?    @map("document_date") @db.Date
+  expiresOn    DateTime?    @map("expires_on") @db.Date
+
+  attachedToType DocumentAttachmentType? @map("attached_to_type")
+  attachedToId   String?                 @map("attached_to_id") @db.Uuid
+
+  status     DocumentStatus     @default(PENDING)
+  scanStatus DocumentScanStatus @default(PENDING) @map("scan_status")
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle        Vehicle? @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  uploadedByUser User?    @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "documents_id_workspace_uk")
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, vehicleId, createdAt(sort: Desc)])
+  @@index([workspaceId, attachedToType, attachedToId])
+  /// Finding abandoned uploads to reap.
+  @@index([status, createdAt])
+  @@map("documents")
+}
+
+
+/// Staff accounts. Deliberately a SEPARATE table from `users`: customer and admin
+/// identities share no table, no token and no guard (SECURITY.md §6), so a compromise of
+/// one cannot be replayed against the other.
+model AdminUser {
+  id    String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email String @unique @db.Citext
+
+  passwordHash String @map("password_hash")
+
+  /// The TOTP secret, encrypted at rest by the application. Named `..._hash` in the
+  /// original spec, but a hash cannot be used to verify a rotating code — so this is
+  /// reversible by design and protected accordingly (DECISIONS.md D-064).
+  mfaSecret        String?   @map("mfa_secret")
+  mfaEnrolledAt    DateTime? @map("mfa_enrolled_at") @db.Timestamptz(6)
+
+  role   AdminRole
+  status AdminStatus @default(PENDING_MFA)
+
+  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(6)
+  failedAttempts   Int       @default(0) @map("failed_attempts")
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions  AdminSession[]
+  auditLogs AuditLog[]
+  supportGrants SupportAccessGrant[]
+
+  @@map("admin_users")
+}
+
+/// Separate session store with its own 8-hour lifetime (SECURITY.md §5).
+model AdminSession {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  adminUserId String @map("admin_user_id") @db.Uuid
+
+  /// SHA-256 of the cookie value. The plaintext exists only in the cookie.
+  tokenHash String  @unique @map("token_hash")
+  ipHash    String? @map("ip_hash")
+  userAgent String? @map("user_agent")
+
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+
+/// SEC-018 — the only route by which staff reach customer content.
+///
+/// No admin role carries a permission that reads vehicle content or documents
+/// (ARCHITECTURE.md §5.2), so a grant is not an escalation of an existing right: it *is*
+/// the right, and it is deliberately narrow, time-boxed and recorded. Every use is
+/// audited, not only the granting (SECURITY.md §15).
+model SupportAccessGrant {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  adminUserId String @map("admin_user_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  /// Free text, required, and long enough to mean something. Read by whoever reviews the
+  /// audit trail later, so "debugging" is not an acceptable answer.
+  reason String
+  scope  SupportAccessScope
+
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  /// Capped at 24 hours from granting by the application (SECURITY.md §13).
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy String?   @map("revoked_by") @db.Uuid
+
+  /// Cheap evidence of whether a grant was actually needed.
+  useCount   Int       @default(0) @map("use_count")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, expiresAt])
+  @@index([workspaceId, expiresAt])
+  @@map("support_access_grants")
+}
+
+model AuditLog {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String? @map("workspace_id") @db.Uuid
+
+  actorType    AuditActorType @default(USER) @map("actor_type")
+  actorUserId  String?        @map("actor_user_id") @db.Uuid
+  actorAdminId String?        @map("actor_admin_id") @db.Uuid
+
+  action       String
+  resourceType String  @map("resource_type")
+  resourceId   String? @map("resource_id") @db.Uuid
+
+  ipHash        String? @map("ip_hash")
+  userAgent     String? @map("user_agent")
+  correlationId String? @map("correlation_id")
+
+  // Never contains passwords, tokens, session IDs or document contents.
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  actorUser  User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorAdmin AdminUser? @relation(fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Service history (SRV-001, SRV-002)
+// ---------------------------------------------------------------------------
+
+model ServiceCategory {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// NULL for the built-in catalogue shared by every workspace.
+  workspaceId String? @map("workspace_id") @db.Uuid
+
+  key         String
+  name        String
+  description String?
+
+  /// Suggested defaults used to seed a maintenance rule. NOT manufacturer-approved —
+  /// the UI says so, and users can override every value (task brief §23).
+  defaultIntervalKm     Int? @map("default_interval_km")
+  defaultIntervalMonths Int? @map("default_interval_months")
+
+  isSystem  Boolean @default(false) @map("is_system")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace        Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  serviceRecords   ServiceRecord[]
+  maintenanceRules MaintenanceRule[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+  @@map("service_categories")
+}
+
+model ServiceRecord {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  performedOn  DateTime      @map("performed_on") @db.Date
+  odometer     Int?
+  odometerUnit DistanceUnit? @map("odometer_unit")
+
+  categoryId String? @map("category_id") @db.Uuid
+  title      String
+  description String?
+
+  contactId    String? @map("contact_id") @db.Uuid
+  workshopName String? @map("workshop_name")
+  mechanicName String? @map("mechanic_name")
+
+  /// Informational breakdown. These are NOT required to sum to totalAmount — real
+  /// invoices carry discounts and rounding (DECISIONS.md D-003).
+  partsTotal  Decimal? @map("parts_total") @db.Decimal(14, 2)
+  labourTotal Decimal? @map("labour_total") @db.Decimal(14, 2)
+  taxTotal    Decimal? @map("tax_total") @db.Decimal(14, 2)
+  /// Authoritative figure for all reporting.
+  totalAmount Decimal? @map("total_amount") @db.Decimal(14, 2)
+  currency    String   @default("GBP") @db.Char(3)
+
+  warrantyMonths  Int?      @map("warranty_months")
+  nextServiceOn   DateTime? @map("next_service_on") @db.Date
+  nextServiceOdometer Int?  @map("next_service_odometer")
+
+  notes           String?
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle          @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  category      ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdByUser User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  parts       ServiceRecordPart[]
+  completions MaintenanceCompletion[]
+  resolvedAdvisories InspectionAdvisory[]
+
+  @@unique([id, workspaceId], map: "service_records_id_workspace_uk")
+  @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
+  @@index([workspaceId, categoryId])
+  @@map("service_records")
+}
+
+model ServiceRecordPart {
+  id              String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId     String @map("workspace_id") @db.Uuid
+  serviceRecordId String @map("service_record_id") @db.Uuid
+
+  name         String
+  brand        String?
+  manufacturer String?
+  partNumber   String? @map("part_number")
+
+  quantity  Decimal  @default(1) @db.Decimal(10, 3)
+  unitPrice Decimal? @map("unit_price") @db.Decimal(14, 2)
+  currency  String   @default("GBP") @db.Char(3)
+
+  warrantyMonths Int?    @map("warranty_months")
+  supplierName   String? @map("supplier_name")
+  notes          String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Cascade: a part has no meaning without its service record.
+  serviceRecord ServiceRecord @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@index([workspaceId, serviceRecordId])
+  @@map("service_record_parts")
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance engine (MNT-001 … MNT-004)
+// ---------------------------------------------------------------------------
+
+model MaintenanceRule {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  categoryId String? @map("category_id") @db.Uuid
+  name       String
+
+  intervalType     MaintenanceIntervalType @default(COMBINED) @map("interval_type")
+  intervalDistance Int?                    @map("interval_distance")
+  intervalDistanceUnit DistanceUnit?       @map("interval_distance_unit")
+  intervalMonths   Int?                    @map("interval_months")
+
+  /// How far ahead DUE_SOON begins. Defaults applied by the engine when null.
+  thresholdDistance Int? @map("threshold_distance")
+  thresholdDays     Int? @map("threshold_days")
+
+  lastCompletedOn       DateTime?     @map("last_completed_on") @db.Date
+  lastCompletedOdometer Int?          @map("last_completed_odometer")
+  lastCompletedUnit     DistanceUnit? @map("last_completed_unit")
+
+  /// Computed and PERSISTED by the server so the scheduler can find due items with an
+  /// index scan rather than evaluating every rule (DATABASE.md §4.6).
+  nextDueOn       DateTime?         @map("next_due_on") @db.Date
+  nextDueOdometer Int?              @map("next_due_odometer")
+  status          MaintenanceStatus @default(OK)
+
+  isActive         Boolean @default(true) @map("is_active")
+  isUserOverridden Boolean @default(false) @map("is_user_overridden")
+  notes            String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle  Vehicle          @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  category ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  completions MaintenanceCompletion[]
+
+  @@unique([id, workspaceId], map: "maintenance_rules_id_workspace_uk")
+  @@index([workspaceId, vehicleId, isActive])
+  @@index([status, nextDueOn])
+  @@map("maintenance_rules")
+}
+
+/// Append-only completion history. Completing maintenance never overwrites the previous
+/// completion (task brief §25).
+model MaintenanceCompletion {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  ruleId      String @map("rule_id") @db.Uuid
+
+  completedOn  DateTime      @map("completed_on") @db.Date
+  odometer     Int?
+  odometerUnit DistanceUnit? @map("odometer_unit")
+
+  serviceRecordId String? @map("service_record_id") @db.Uuid
+  notes           String?
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  rule          MaintenanceRule @relation(fields: [ruleId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  // Restrict, not SetNull: workspaceId is part of the composite key and cannot be
+  // nulled. Service records are soft-deleted rather than removed, so this never fires
+  // in normal operation.
+  serviceRecord ServiceRecord?  @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+
+  @@index([workspaceId, ruleId, completedOn(sort: Desc)])
+  @@map("maintenance_completions")
+}
+
+// ---------------------------------------------------------------------------
+// Reminders and notifications (REM-001, NOT-001, MAIL-003/004)
+// ---------------------------------------------------------------------------
+
+/// One reminder per due-dated thing. The engine owns scheduling and state; each source
+/// only knows how to find its own candidates (ARCHITECTURE.md §8).
+model Reminder {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String  @map("workspace_id") @db.Uuid
+  vehicleId   String? @map("vehicle_id") @db.Uuid
+
+  sourceType ReminderSourceType @map("source_type")
+  /// Row this reminder tracks (a maintenance rule, a policy, ...). Null for CUSTOM.
+  sourceId   String?            @map("source_id") @db.Uuid
+
+  /// Null means every eligible member, resolved at delivery time.
+  targetUserId String? @map("target_user_id") @db.Uuid
+
+  title String
+  body  String?
+
+  dueOn          DateTime?     @map("due_on") @db.Date
+  dueOdometer    Int?          @map("due_odometer")
+  dueOdometerUnit DistanceUnit? @map("due_odometer_unit")
+
+  /// Days before dueOn at which to notify. Default {30,14,7,1}.
+  leadDays Int[] @default([30, 14, 7, 1]) @map("lead_days")
+  /// Distance before dueOdometer at which to notify, in the reminder's unit.
+  leadDistances Int[] @default([1000, 500]) @map("lead_distances")
+
+  channels NotificationChannel[] @default([IN_APP, EMAIL])
+  status   ReminderStatus        @default(SCHEDULED)
+
+  snoozedUntil    DateTime? @map("snoozed_until") @db.Date
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  dismissedAt     DateTime? @map("dismissed_at") @db.Timestamptz(6)
+  lastEvaluatedAt DateTime? @map("last_evaluated_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle?   @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  targetUser User?      @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  notifications Notification[]
+  deliveries    NotificationDelivery[]
+
+  /// One live reminder per source. Completed and cancelled ones are excluded by a
+  /// partial index added in the migration, so history is retained.
+  @@unique([id, workspaceId], map: "reminders_id_workspace_uk")
+  @@index([workspaceId, status])
+  @@index([status, dueOn])
+  @@index([workspaceId, vehicleId])
+  @@map("reminders")
+}
+
+model Notification {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+
+  category NotificationCategory
+  title    String
+  body     String?
+  actionUrl String? @map("action_url")
+
+  vehicleId  String? @map("vehicle_id") @db.Uuid
+  reminderId String? @map("reminder_id") @db.Uuid
+
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminder  Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([workspaceId, userId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  category NotificationCategory
+  channel  NotificationChannel
+  isEnabled Boolean @default(true) @map("is_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, category, channel])
+  @@map("notification_preferences")
+}
+
+/// The idempotency ledger. A row is inserted BEFORE sending; the unique key makes a
+/// retried worker a no-op rather than a second email (EMAILS.md §4).
+model NotificationDelivery {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  reminderId String? @map("reminder_id") @db.Uuid
+  userId     String  @map("user_id") @db.Uuid
+  channel    NotificationChannel
+
+  /// sha256(workspace | reminder | channel | user | window)
+  idempotencyKey String         @unique @map("idempotency_key")
+  status         DeliveryStatus @default(PENDING)
+  emailMessageId String?        @map("email_message_id") @db.Uuid
+
+  attempts  Int       @default(0)
+  lastError String?   @map("last_error")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reminder     Reminder?     @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("notification_deliveries")
+}
+
+/// Application-side email history. Written BEFORE the provider call, so support can see
+/// an outbound message even when the provider call itself failed (EMAILS.md §5).
+model EmailMessage {
+  id          String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String? @map("workspace_id") @db.Uuid
+  userId      String? @map("user_id") @db.Uuid
+
+  template  String
+  locale    String  @default("en-GB")
+  recipientEmail String @map("recipient_email") @db.Citext
+  subject   String
+
+  provider          String
+  providerMessageId String? @map("provider_message_id")
+
+  status        EmailStatus @default(QUEUED)
+  correlationId String?     @map("correlation_id")
+  idempotencyKey String     @unique @map("idempotency_key")
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  failedAt    DateTime? @map("failed_at") @db.Timestamptz(6)
+  lastEventAt DateTime? @map("last_event_at") @db.Timestamptz(6)
+  metadata    Json?
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  events     EmailDeliveryEvent[]
+  deliveries NotificationDelivery[]
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([providerMessageId])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("email_messages")
+}
+
+model EmailSuppression {
+  id String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+
+  /// Citext: suppression must survive a difference in capitalisation.
+  email  String                 @unique @db.Citext
+  reason EmailSuppressionReason
+
+  /// What caused it, kept so an operator can judge whether to lift it.
+  detail          String?
+  sourceEventId   String? @map("source_event_id")
+  sourceMessageId String? @map("source_message_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  /// Lifting a suppression sets this rather than deleting the row: why an address was
+  /// once refused is exactly what someone needs when it bounces again.
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(6)
+  releasedBy String?   @map("released_by")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([releasedAt])
+  @@map("email_suppressions")
+}
+
+model EmailDeliveryEvent {
+  id             String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  emailMessageId String @map("email_message_id") @db.Uuid
+
+  /// Unique so a replayed webhook is an idempotent no-op.
+  providerEventId String   @unique @map("provider_event_id")
+  eventType       String   @map("event_type")
+  occurredAt      DateTime @map("occurred_at") @db.Timestamptz(6)
+  payload         Json?
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  emailMessage EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@index([emailMessageId, occurredAt(sort: Desc)])
+  @@map("email_delivery_events")
+}
