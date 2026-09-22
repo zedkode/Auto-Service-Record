@@ -257,6 +257,9 @@ importers:
       '@autoservices/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@autoservices/export':
+        specifier: workspace:*
+        version: link:../../packages/export
       '@autoservices/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -449,9 +452,15 @@ importers:
       '@autoservices/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@autoservices/export':
+        specifier: workspace:*
+        version: link:../../packages/export
       '@autoservices/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@autoservices/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@autoservices/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -671,6 +680,27 @@ importers:
       typescript-eslint:
         specifier: 8.70.0
         version: 8.70.0(eslint@10.11.0(jiti@2.7.0))(typescript@6.0.3)
+
+  packages/export:
+    devDependencies:
+      '@autoservices/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@autoservices/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      eslint:
+        specifier: 10.11.0
+        version: 10.11.0(jiti@2.7.0)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@24.10.1)(vite@8.3.0(@types/node@24.10.1)(jiti@2.7.0))
 
   packages/logger:
     dependencies:

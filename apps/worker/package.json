@@ -14,7 +14,9 @@
   "dependencies": {
     "@autoservices/db": "workspace:*",
     "@autoservices/email": "workspace:*",
+    "@autoservices/export": "workspace:*",
     "@autoservices/logger": "workspace:*",
+    "@autoservices/storage": "workspace:*",
     "@autoservices/types": "workspace:*",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",

@@ -268,6 +268,9 @@ describe('LAYER 2: the Prisma tenant extension scopes every operation', () => {
         'EmailMessage',
         'Expense',
         'ExpenseCategory',
+        // EXP-001. The row is workspace-scoped like any other; the FILE it points at is
+        // protected separately, by an unguessable key and a signed, expiring URL.
+        'ExportJob',
         'FuelEntry',
         'InspectionAdvisory',
         'InsurancePolicy',

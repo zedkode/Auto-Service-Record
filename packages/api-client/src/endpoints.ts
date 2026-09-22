@@ -9,6 +9,10 @@ import type {
   DownloadLink,
   DueMaintenanceItem,
   FuelEconomy,
+  ExportDownload,
+  ExportFormat,
+  ExportJob,
+  ExportKind,
   FleetReport,
   FuelTrend,
   FuelEntry,
@@ -318,6 +322,25 @@ export function createApi(client: ApiClient) {
       update: (ws: string, id: string, input: Record<string, unknown>) =>
         client.patch<FuelEntry>(`/workspaces/${ws}/fuel/${id}`, input),
       remove: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/fuel/${id}`),
+    },
+
+    exports: {
+      list: (ws: string) => client.get<ExportJob[]>(`/workspaces/${ws}/exports`),
+      get: (ws: string, id: string) => client.get<ExportJob>(`/workspaces/${ws}/exports/${id}`),
+      create: (
+        ws: string,
+        input: {
+          kind: ExportKind
+          format: ExportFormat
+          from?: string
+          to?: string
+          vehicleId?: string
+        },
+      ) => client.post<ExportJob>(`/workspaces/${ws}/exports`, input),
+      // POST, not GET: it mints a signed URL and writes an audit entry, so it must not be
+      // prefetched or replayed from browser history.
+      download: (ws: string, id: string) =>
+        client.post<ExportDownload>(`/workspaces/${ws}/exports/${id}/download`, {}),
     },
 
     documents: {

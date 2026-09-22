@@ -32,6 +32,13 @@ export const PERMISSIONS = [
   'document:delete',
   'reminder:manage',
   'report:read',
+  /**
+   * Bulk export is deliberately NOT part of `report:read`. A VIEWER can read anything on
+   * screen; taking the whole workspace away as a file is a different act, and it is the
+   * one a data-protection review asks about. Granted to OWNER, ADMIN and EDITOR — the
+   * roles that already write the data — and withheld from VIEWER.
+   */
+  'export:create',
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -66,6 +73,7 @@ const MATRIX: Record<WorkspaceRole, ReadonlySet<Permission>> = {
     'document:delete',
     'reminder:manage',
     'report:read',
+    'export:create',
   ]),
   EDITOR: new Set<Permission>([
     'workspace:read',
@@ -84,6 +92,7 @@ const MATRIX: Record<WorkspaceRole, ReadonlySet<Permission>> = {
     'document:write',
     'reminder:manage',
     'report:read',
+    'export:create',
   ]),
   DRIVER: new Set<Permission>([
     'workspace:read',

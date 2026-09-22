@@ -6,7 +6,7 @@ import {
   looksLike,
   storageKey,
   DOWNLOAD_TTL_SECONDS,
-  S3Storage,
+  s3FromEnv,
   type AllowedContentType,
   type ObjectStorage,
 } from '@autoservices/storage'
@@ -30,14 +30,7 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {
-    this.storage = new S3Storage({
-      endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:59000',
-      region: process.env.S3_REGION ?? 'us-east-1',
-      bucket: process.env.S3_BUCKET ?? 'autoservices',
-      accessKeyId: process.env.S3_ACCESS_KEY ?? '',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? '',
-      forcePathStyle: true,
-    })
+    this.storage = s3FromEnv()
   }
 
   /**

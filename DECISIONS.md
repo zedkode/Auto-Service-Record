@@ -12,6 +12,52 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Data export
+
+### D-098 · Export decimals are rendered at the precision the column stores
+Money is two places, `quantity` three, `unit_price` four — each matching its `Decimal`
+column rather than a convenient default. **Why this is worth an entry:** the first version
+formatted every decimal to two places, so a 48.500-litre fill exported as `48.50`. Inside
+the product that digit is recoverable; in an export it is not, because the file leaves for
+a spreadsheet that has no way back to the database. An export is the one place where a
+rounding convenience becomes permanent data loss.
+
+### D-097 · Bulk export is its own permission, withheld from VIEWER
+`export:create` is separate from `report:read`, and VIEWER has the latter but not the
+former. **Why, when a VIEWER can already read every figure on screen:** reading a page and
+walking away with the entire workspace as a file are different acts, and the second is the
+one a data-protection review asks about. The distinction costs nothing to enforce here and
+cannot be retrofitted cheaply later, once integrations depend on the looser rule.
+**Consequence:** EDITOR, ADMIN and OWNER may export; DRIVER and VIEWER may not. A VIEWER
+still sees the export list, because hiding the fact that exports exist would make the
+workspace's history harder to audit rather than safer.
+
+### D-096 · A cell that looks like a formula is defused before it leaves
+`escapeCell` prefixes `=`, `+`, `-`, `@`, tab and CR with a single quote. **Why:** a
+workshop named `=cmd|'/c calc'!A1` is CSV injection. Excel and Sheets evaluate it when the
+file is opened, and the victim is whoever opens the export — usually an accountant on a
+different machine who never touched this application. The data was accepted legitimately;
+the export is what carries it out of our system and into theirs, so the export is where it
+must be neutralised. **Alternative considered:** rejecting such values at input. Rejected —
+they are legitimate text, and a product that refuses to store a hyphen at the start of a
+note is broken in a more visible way. **Consequence:** the prefix is visible in the cell.
+That is the accepted cost, and it is what every spreadsheet tool does.
+
+### D-095 · Exports are built by the worker, into storage, behind a short-lived signed URL
+`POST /exports` writes a row, enqueues a job and returns `202`. The worker assembles the
+file, puts it in object storage under a key containing 24 random bytes, and the only route
+to the bytes is a signed URL valid for two minutes, issued per download and audited.
+**Why not build it in the request:** a workspace with years of history takes seconds to
+assemble and megabytes to hold, so an inline export times out on exactly the accounts that
+most need one (ADR-004). **Why the key is random:** a key derived from the workspace or the
+job id turns "you need a signed URL" into "you need to guess a number" — the enumeration
+case in `scripts/pentest-documents.mjs`. **Why the file expires after a day:** an export is
+a copy of tenant data living outside the database, where none of the product's access rules
+apply to it any more. The row outlives the file, so the record of what was exported, by
+whom and when survives; the row then reads `EXPIRED` rather than offering a dead link.
+
+---
+
 ## 2026-09-22 — Query performance
 
 ### D-094 · A misplaced index is corrected by a new migration, never by editing the old one

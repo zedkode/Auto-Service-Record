@@ -33,6 +33,7 @@ const EXPECTED: Record<WorkspaceRole, Permission[]> = {
     'document:delete',
     'reminder:manage',
     'report:read',
+    'export:create',
   ],
   EDITOR: [
     'workspace:read',
@@ -51,6 +52,7 @@ const EXPECTED: Record<WorkspaceRole, Permission[]> = {
     'document:write',
     'reminder:manage',
     'report:read',
+    'export:create',
   ],
   DRIVER: [
     'workspace:read',

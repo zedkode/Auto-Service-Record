@@ -295,6 +295,27 @@ PUT    .../vehicles/:id/images/:imageId/primary
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
 
+**Data export (EXP-001).** `POST /workspaces/:ws/exports` takes
+`{ kind, format, from?, to?, vehicleId? }` and returns **202** with the job row — it does
+not wait for the file. `kind` is `EXPENSES`, `SERVICES`, `FUEL`, `ODOMETER` or `VEHICLES`;
+`format` is `CSV` or `JSON`. Date filters are recorded only for the kinds they apply to.
+Requires `export:create`, which VIEWER and DRIVER do not have (DECISIONS.md D-097); the
+list and status endpoints need only `report:read`.
+
+`GET /exports` and `GET /exports/:id` report `status` — `PENDING`, `RUNNING`, `READY`,
+`FAILED` or `EXPIRED` — with `rowCount`, `byteSize`, `filename` and, on failure, a message
+safe to show a user. At most 3 exports may be `PENDING` or `RUNNING` per workspace; a
+fourth request returns `409`.
+
+`POST /exports/:id/download` returns `{ url, expiresInSeconds, filename }`. It is a POST
+because it mints a credential and writes an audit entry, so it must not be prefetched or
+replayed from history. The URL is signed and lives for 120 seconds; the object key never
+leaves the server. A download is refused with `409` when the export is not `READY`, and an
+export whose file has been reaped is marked `EXPIRED` rather than signed for (D-095).
+
+CSV files carry a UTF-8 BOM and CRLF line endings, and any cell beginning `=`, `+`, `-`,
+`@`, tab or CR is prefixed with a single quote so no spreadsheet evaluates it (D-096).
+
 **Fleet rollup (RPT-004).** `GET /workspaces/:ws/reports/fleet?from&to` returns the same
 period as `/reports/costs`, arranged one row per vehicle:
 `{ from, to, days, currency, mixedCurrencies, fleet, vehicles[], unassigned }`. Each row in

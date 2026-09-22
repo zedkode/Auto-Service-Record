@@ -7,6 +7,7 @@ import { createLogger } from '@autoservices/logger'
 import { EmailService, createTransport, RedisIdempotencyStore } from '@autoservices/email'
 import { EmailLog, EmailSuppressionStore } from '@autoservices/db'
 import { PrismaClient } from '@prisma/client'
+import { s3FromEnv } from '@autoservices/storage'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { createQueues, QUEUE_NAMES, type QueueName } from './queues/index.js'
 import {
@@ -15,6 +16,7 @@ import {
   handleScanReminders,
   type JobContext,
 } from './jobs/handlers.js'
+import { handleBuildExport } from './jobs/export.handler.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.resolve(here, '../../../.env'), quiet: true })
@@ -53,6 +55,13 @@ async function main(): Promise<void> {
 
   const ctx: JobContext = { email, emailLog, suppressions, logger }
 
+  /**
+   * Exports are written straight to object storage by the worker: there is no browser in
+   * the loop to hand a presigned PUT to (EXP-001).
+   */
+  const storage = s3FromEnv()
+  const exportCtx = { prisma: prisma as never, storage, logger }
+
   const queues = createQueues(connection)
   const workers: Worker[] = []
 
@@ -66,6 +75,8 @@ async function main(): Promise<void> {
         return handleSendEmail(job as never, ctx)
       case 'scan-reminders':
         return handleScanReminders(job, ctx)
+      case 'build-export':
+        return handleBuildExport(job, exportCtx)
       default:
         // Unknown job names fail loudly rather than being silently discarded.
         throw new Error(`No handler registered for job "${job.name}"`)

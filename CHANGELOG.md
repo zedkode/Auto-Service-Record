@@ -13,6 +13,18 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — Take your data with you
+- **Export your costs, service history, fuel, mileage or vehicle list** as a spreadsheet
+  (CSV) or JSON, over whatever date range you have chosen.
+- **It prepares in the background.** Ask for it and carry on; the page tells you when it is
+  ready, however many years of history you have.
+- **Files open correctly in Excel**, including names with accents, and columns keep the
+  exact figures we stored rather than rounded ones.
+- **Download links are short-lived and single-purpose**, and the file itself is removed
+  after a day — an export is a copy of your data outside the app, so it does not linger.
+- **Exporting is restricted to owners, admins and editors.** People with view-only access
+  can still read everything in the app.
+
 ### Changed — Faster, particularly the first screen
 - **Every page does less work to load.** Signing in used to cost five database lookups
   before a page could even begin fetching its own data; it now costs two.

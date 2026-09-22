@@ -586,6 +586,32 @@ export interface FuelEconomy {
   fillCount: number
 }
 
+/** EXP-001 — an asynchronous data export. */
+export type ExportKind = 'EXPENSES' | 'SERVICES' | 'FUEL' | 'ODOMETER' | 'VEHICLES'
+export type ExportFormat = 'CSV' | 'JSON'
+export type ExportStatus = 'PENDING' | 'RUNNING' | 'READY' | 'FAILED' | 'EXPIRED'
+
+export interface ExportJob {
+  id: string
+  kind: ExportKind
+  format: ExportFormat
+  status: ExportStatus
+  params: { from?: string; to?: string; vehicleId?: string }
+  filename: string | null
+  byteSize: number | null
+  rowCount: number | null
+  error: string | null
+  expiresAt: string | null
+  completedAt: string | null
+  createdAt: string | null
+}
+
+export interface ExportDownload {
+  url: string
+  expiresInSeconds: number
+  filename: string | null
+}
+
 /** RPT-004 — the workspace as a fleet: one row per vehicle, plus the total. */
 export interface FleetUnavailable {
   perMile: string | null

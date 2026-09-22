@@ -17,6 +17,11 @@ export interface ObjectStorage {
   createUploadSession(key: string, contentType: string, byteSize: number): Promise<UploadSession>
   /** Presigned GET, issued only after a permission check. */
   createDownloadUrl(key: string, filename: string, expiresInSeconds: number): Promise<string>
+  /**
+   * Writes an object the SERVER produced, rather than one a client uploaded. Used for
+   * generated files such as exports, where there is no browser to hand a presigned PUT to.
+   */
+  put(key: string, body: string | Uint8Array, contentType: string): Promise<StoredObject>
   /** Metadata for finalisation, or null when nothing was uploaded. */
   head(key: string): Promise<StoredObject | null>
   /** First `bytes` of the object, for magic-byte verification. */

@@ -19,8 +19,10 @@
     "@autoservices/config": "workspace:*",
     "@autoservices/db": "workspace:*",
     "@autoservices/email": "workspace:*",
+    "@autoservices/export": "workspace:*",
     "@autoservices/logger": "workspace:*",
     "@autoservices/permissions": "workspace:*",
+    "@autoservices/storage": "workspace:*",
     "@autoservices/types": "workspace:*",
     "@autoservices/validation": "workspace:*",
     "@fastify/cookie": "11.0.2",
@@ -36,8 +38,7 @@
     "ioredis": "6.0.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "zod": "4.6.5",
-    "@autoservices/storage": "workspace:*"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@autoservices/eslint-config": "workspace:*",

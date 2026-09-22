@@ -262,6 +262,29 @@ enum ExpenseSourceType {
 
 /// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
 /// country's inspection regime is a new enum member, not a new table.
+enum ExportKind {
+  EXPENSES
+  SERVICES
+  FUEL
+  ODOMETER
+  VEHICLES
+}
+
+enum ExportFormat {
+  CSV
+  JSON
+}
+
+enum ExportStatus {
+  PENDING
+  RUNNING
+  READY
+  FAILED
+  /// The object has been reaped; the row stays so the history of what was exported, by
+  /// whom and when survives the file itself.
+  EXPIRED
+}
+
 enum InspectionType {
   MOT
   ITP
@@ -367,6 +390,7 @@ model User {
   documents               Document[]
   fuelEntries             FuelEntry[]
 
+  requestedExports ExportJob[]
   @@index([status])
   @@map("users")
 }
@@ -475,6 +499,7 @@ model Workspace {
   notificationDeliveries  NotificationDelivery[]
   emailMessages           EmailMessage[]
 
+  exportJobs ExportJob[]
   @@index([ownerUserId])
   @@map("workspaces")
 }
@@ -1484,4 +1509,51 @@ model EmailDeliveryEvent {
 
   @@index([emailMessageId, occurredAt(sort: Desc)])
   @@map("email_delivery_events")
+}
+
+/// EXP-001 — an asynchronous data export.
+///
+/// The row is the record of the request; the file lives in object storage under a key
+/// nobody can guess and is only ever handed out as a signed, expiring URL (SECURITY.md).
+model ExportJob {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  /// Null once the requester's account is deleted; the export's history still matters.
+  requestedByUserId String? @map("requested_by_user_id") @db.Uuid
+
+  kind   ExportKind
+  format ExportFormat
+  /// The filters the user chose: from, to, vehicleId. Stored so a finished export can say
+  /// what it actually contains rather than only what it is called.
+  params Json         @default("{}")
+
+  status ExportStatus @default(PENDING)
+
+  /// Set only once the file exists. The key is random, never derived from the workspace
+  /// or the user, so possession of one key reveals nothing about any other.
+  objectKey String? @map("object_key")
+  filename  String?
+  byteSize  Int?    @map("byte_size")
+  rowCount  Int?    @map("row_count")
+
+  /// A message safe to show the user. Never a stack trace and never a query.
+  error String?
+
+  /// When the file is reaped. An export is a copy of tenant data sitting outside the
+  /// database, so it is deliberately short-lived.
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedByUser User?     @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "export_jobs_id_workspace_uk")
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@map("export_jobs")
 }

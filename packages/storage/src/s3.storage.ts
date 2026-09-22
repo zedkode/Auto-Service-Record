@@ -82,6 +82,20 @@ export class S3Storage implements ObjectStorage {
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds })
   }
 
+  async put(key: string, body: string | Uint8Array, contentType: string): Promise<StoredObject> {
+    const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+        ContentLength: bytes.byteLength,
+      }),
+    )
+    return { byteSize: bytes.byteLength, contentType, checksumSha256: null }
+  }
+
   async head(key: string): Promise<StoredObject | null> {
     try {
       const res = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }))
@@ -147,4 +161,23 @@ export function contentDisposition(filename: string): string {
   const ascii = safe.replace(/[^\x20-\x7e]/g, '_')
   const encoded = encodeURIComponent(safe)
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`
+}
+
+/**
+ * Builds the storage client from the environment.
+ *
+ * Exists because the same six variables were being read in two places under two different
+ * names — the API used `S3_ACCESS_KEY`, a second copy used `S3_ACCESS_KEY_ID`, and the one
+ * that guessed wrong would have failed at runtime with empty credentials rather than at
+ * startup. One reader, one set of names.
+ */
+export function s3FromEnv(env: NodeJS.ProcessEnv = process.env): S3Storage {
+  return new S3Storage({
+    endpoint: env.S3_ENDPOINT ?? 'http://localhost:59000',
+    region: env.S3_REGION ?? 'us-east-1',
+    bucket: env.S3_BUCKET ?? 'autoservices',
+    accessKeyId: env.S3_ACCESS_KEY ?? '',
+    secretAccessKey: env.S3_SECRET_KEY ?? '',
+    forcePathStyle: (env.S3_FORCE_PATH_STYLE ?? 'true') !== 'false',
+  })
 }

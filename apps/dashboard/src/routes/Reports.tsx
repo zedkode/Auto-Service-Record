@@ -14,6 +14,7 @@ import {
   formatMoney,
 } from '@autoservices/ui'
 import { ApiError, type CostReport } from '@autoservices/api-client'
+import { ExportPanel } from '../components/ExportPanel.js'
 import { FleetTable } from '../components/FleetTable.js'
 import { api } from '../lib/api.js'
 import { useSession } from '../lib/use-session.js'
@@ -145,6 +146,7 @@ export function ReportsPage() {
           {vehicleId === '' && fleet.data && (
             <FleetTable report={fleet.data} currency={workspace.defaultCurrency} />
           )}
+          <ExportPanel from={from} to={to} />
         </>
       )}
     </>

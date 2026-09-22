@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 47 | 0 | 0 | 0 | 9 | 36 |
-| **Total** | **142** | **92** | **3** | **1** | **0** | **9** | **37** |
+| 3–12 — Later phases | 92 | 48 | 0 | 0 | 0 | 9 | 35 |
+| **Total** | **142** | **93** | **3** | **1** | **0** | **9** | **36** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -217,11 +217,32 @@ recent-services improved 1.99 → 1.06 ms while its siblings hit 0.05, and that 
 was the only signal. Corrected by a second migration rather than by editing the first
 (D-094).
 
-**Next recommended task:** `EXP-001` (async CSV/JSON export), the obvious follow-on now
-that the reports are complete, then `OWN-004` (warranties), which reuses an ownership shape
-already proven three times. `HARD-005` (index review against real query plans) is now
-largely evidenced by `audit-plans.mjs` and could be closed by extending that script's query
-list to the remaining endpoints.
+`EXP-001` is `DONE`. `POST /exports` writes a row, enqueues a job and returns 202 in about
+30 ms; the worker assembles the file and puts it in object storage, and the only route to
+the bytes is a signed URL valid for two minutes, issued per download and audited (D-095).
+Five kinds — expenses, services, fuel, mileage, vehicles — in CSV or JSON. The serialiser
+is a new shared package, `packages/export`, so the API's validation and the worker's file
+share one definition of what a column set is.
+
+**Three security decisions are the substance of this task**, not the file writing:
+bulk export is its own permission and VIEWER does not have it (D-097); any cell beginning
+`=`, `+`, `-`, `@`, tab or CR is prefixed so no spreadsheet evaluates it (D-096); and the
+object key carries 24 random bytes, so possession of one reveals nothing about another.
+
+**A data-loss bug was caught by the verification script**, not by review: every decimal was
+being rendered to two places, so a 48.500-litre fill exported as `48.50`. Inside the product
+that digit is recoverable; in a file that has left for a spreadsheet it is not (D-098). A
+second real bug — the services export reading `providerName`, a field that does not exist,
+where the column is `workshopName` — would have shipped an always-empty column.
+
+`ExportJob` is the sixth tenant model the isolation suite has caught automatically: the
+schema-derived `TENANT_MODELS` failed the moment the model existed and had to be
+acknowledged explicitly.
+
+**Next recommended task:** `OWN-004` (warranties), which reuses an ownership shape already
+proven three times, then `EXP-002` (PDF vehicle history) which now has the export pipeline
+underneath it. `HARD-005` (index review against real query plans) is largely evidenced by
+`audit-plans.mjs` and could be closed by extending that script's query list.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1422,7 +1443,7 @@ All are `BACKLOG` until their phase begins.
 | RPT-003 | Fuel economy trends | DONE | MEDIUM | OWN-006 
 | RPT-004 | Workspace and fleet rollups | DONE | MEDIUM | RPT-001 
 | RPT-005 | Report UI with date-range filtering | DONE | HIGH | RPT-001 
-| EXP-001 | Async export jobs (CSV, JSON) | BACKLOG | MEDIUM | RPT-001 
+| EXP-001 | Async export jobs (CSV, JSON) | DONE | MEDIUM | RPT-001 
 | EXP-002 | PDF vehicle history export | BACKLOG | MEDIUM | EXP-001 
 
 ### Phase 11 — Commercial foundation
