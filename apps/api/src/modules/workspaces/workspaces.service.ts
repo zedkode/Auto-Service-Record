@@ -260,7 +260,12 @@ export class WorkspacesService {
     // --- month-to-date spend, read from the single cost surface ---
     const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
     const spend = await db.expense.findMany({
-      where: { deletedAt: null, incurredOn: { gte: monthStart, lte: today } },
+      where: {
+        deletedAt: null,
+        incurredOn: { gte: monthStart, lte: today },
+        // A soft-deleted vehicle is hidden from all reads, its costs included.
+        OR: [{ vehicleId: null }, { vehicle: { deletedAt: null } }],
+      },
       select: { amount: true, currency: true },
     })
     const currencies = new Set(spend.map((e) => e.currency))

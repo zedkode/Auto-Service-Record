@@ -92,7 +92,23 @@ export function createApi(client: ApiClient) {
     },
 
     vehicles: {
-      list: (ws: string) => client.get<VehicleSummary[]>(`/workspaces/${ws}/vehicles`),
+      list: (ws: string, includeInactive = false) =>
+        client.get<VehicleSummary[]>(
+          `/workspaces/${ws}/vehicles${includeInactive ? '?includeInactive=true' : ''}`,
+        ),
+      listDeleted: (ws: string) =>
+        client.get<Array<VehicleSummary & { deletedAt: string | null }>>(
+          `/workspaces/${ws}/vehicles/deleted`,
+        ),
+      changeStatus: (ws: string, vehicleId: string, status: string, reason?: string) =>
+        client.patch<VehicleDetail>(`/workspaces/${ws}/vehicles/${vehicleId}/status`, {
+          status,
+          ...(reason ? { reason } : {}),
+        }),
+      remove: (ws: string, vehicleId: string) =>
+        client.delete<void>(`/workspaces/${ws}/vehicles/${vehicleId}`),
+      restore: (ws: string, vehicleId: string) =>
+        client.post<VehicleDetail>(`/workspaces/${ws}/vehicles/${vehicleId}/restore`),
       get: (ws: string, id: string) =>
         client.get<VehicleDetail>(`/workspaces/${ws}/vehicles/${id}`),
       create: (ws: string, input: Record<string, unknown>) =>

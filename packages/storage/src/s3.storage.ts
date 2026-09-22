@@ -77,7 +77,7 @@ export class S3Storage implements ObjectStorage {
       Key: key,
       // Forces a download rather than inline rendering, and restores the name the user
       // uploaded — which is metadata, never part of the key.
-      ResponseContentDisposition: `attachment; filename="${sanitiseFilename(filename)}"`,
+      ResponseContentDisposition: contentDisposition(filename),
     })
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds })
   }
@@ -117,13 +117,34 @@ function isNotFound(err: unknown): boolean {
 /**
  * The filename goes into a response header, so anything that could terminate or inject
  * one is removed. It is presentation only — the object is addressed by its key.
+ *
+ * Bidirectional overrides are stripped too: `invoice\u202Efdp.pdf` renders as
+ * "invoicefdp.pdf" reversed, which is how a file is made to display an extension it does
+ * not have.
  */
 export function sanitiseFilename(filename: string): string {
   return (
     filename
       .replace(/[\r\n"\\]/g, '')
       .replace(/[/\\]/g, '_')
+      // U+202A–U+202E and U+2066–U+2069: the bidi embedding and isolate controls.
+      .replace(/[\u202a-\u202e\u2066-\u2069]/g, '')
       .slice(0, 200)
       .trim() || 'document'
   )
+}
+
+/**
+ * A `Content-Disposition` value per RFC 6266.
+ *
+ * HTTP header values are latin-1, so a name containing anything outside it — Cyrillic,
+ * Chinese, an accented character — is mangled when placed raw in `filename=`. The RFC's
+ * answer is to send BOTH: a stripped ASCII form every client understands, and a
+ * percent-encoded UTF-8 `filename*` that modern ones prefer.
+ */
+export function contentDisposition(filename: string): string {
+  const safe = sanitiseFilename(filename)
+  const ascii = safe.replace(/[^\x20-\x7e]/g, '_')
+  const encoded = encodeURIComponent(safe)
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`
 }

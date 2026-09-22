@@ -34,7 +34,12 @@ export class ExpensesService {
 
   async list(workspaceId: string, filters: ExpenseFilters = {}) {
     const db = this.prisma.forWorkspace(workspaceId)
-    const where: Prisma.ExpenseWhereInput = { deletedAt: null }
+    const where: Prisma.ExpenseWhereInput = {
+      deletedAt: null,
+      // A soft-deleted vehicle is hidden from all reads, so its costs leave the totals
+      // with it. Workspace-level costs (no vehicle) are unaffected.
+      OR: [{ vehicleId: null }, { vehicle: { deletedAt: null } }],
+    }
     if (filters.vehicleId) where.vehicleId = filters.vehicleId
     if (filters.categoryId) where.categoryId = filters.categoryId
     if (filters.sourceType) where.sourceType = filters.sourceType as never
@@ -67,6 +72,9 @@ export class ExpensesService {
     const where: Prisma.ExpenseWhereInput = {
       deletedAt: null,
       incurredOn: { gte: toDateOnly(from), lte: toDateOnly(to) },
+      // A soft-deleted vehicle is hidden from all reads, so its costs leave the totals
+      // with it. Workspace-level costs (no vehicle) are unaffected.
+      OR: [{ vehicleId: null }, { vehicle: { deletedAt: null } }],
     }
 
     const rows = await db.expense.findMany({

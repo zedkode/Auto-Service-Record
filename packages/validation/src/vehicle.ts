@@ -88,3 +88,21 @@ export const createOdometerEntrySchema = z
     path: ['correctionReason'],
   })
 export type CreateOdometerEntryInput = z.infer<typeof createOdometerEntrySchema>
+
+/**
+ * VEH-003 — the status lifecycle.
+ *
+ * A vehicle leaves active service without losing its history: `SOLD`, `SCRAPPED`,
+ * `STORED` and `ARCHIVED` all keep every record readable. Deletion is a separate,
+ * recoverable act (DATABASE.md §5).
+ */
+// `vehicleStatus` is declared above with the other vehicle enums; reusing it keeps one
+// definition rather than two that can drift apart.
+export type VehicleStatusValue = z.infer<typeof vehicleStatus>
+
+export const changeVehicleStatusSchema = z.object({
+  status: vehicleStatus,
+  /** Free text kept on the audit row: "sold to a dealer", "written off". */
+  reason: shortText.optional(),
+})
+export type ChangeVehicleStatusInput = z.infer<typeof changeVehicleStatusSchema>

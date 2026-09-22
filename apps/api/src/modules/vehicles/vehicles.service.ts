@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import type { Prisma, OdometerEntry, Vehicle } from '@prisma/client'
-import type { CreateVehicleInput, CreateOdometerEntryInput } from '@autoservices/validation'
+import type {
+  CreateVehicleInput,
+  VehicleStatusValue,
+  CreateOdometerEntryInput,
+} from '@autoservices/validation'
 import { compareDistance, type Distance, type DistanceUnit } from '@autoservices/types'
 import { PrismaService } from '../../common/prisma.service.js'
 import { AuditService } from '../../common/audit/audit.service.js'
@@ -21,13 +25,171 @@ export class VehiclesService {
     private readonly timelineService: TimelineService,
   ) {}
 
-  async list(workspaceId: string) {
+  /**
+   * Vehicles still in use. A sold or archived vehicle is deliberately absent unless asked
+   * for: the garage view is about what you drive, and its history stays readable through
+   * the vehicle itself (DATABASE.md §5).
+   */
+  async list(workspaceId: string, options: { includeInactive?: boolean } = {}) {
     const db = this.prisma.forWorkspace(workspaceId)
     const vehicles = await db.vehicle.findMany({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(options.includeInactive ? {} : { status: { notIn: ['SOLD', 'SCRAPPED', 'ARCHIVED'] } }),
+      },
       orderBy: { createdAt: 'desc' },
     })
     return vehicles.map((v: Vehicle) => this.toSummary(v))
+  }
+
+  /**
+   * Moves a vehicle through its lifecycle. Nothing is removed: selling a car keeps every
+   * service, fill and certificate exactly where it was, which is most of why someone kept
+   * the record at all.
+   *
+   * Leaving ACTIVE also cancels open reminders. The reminder sources already stop
+   * *emitting* for a non-active vehicle, but a reminder already raised would otherwise sit
+   * there telling the previous owner their sold car needs an MOT (the same defect D-052
+   * fixed for renewals).
+   */
+  async changeStatus(
+    workspaceId: string,
+    vehicleId: string,
+    userId: string,
+    input: { status: VehicleStatusValue; reason?: string },
+  ) {
+    const db = this.prisma.forWorkspace(workspaceId)
+    const vehicle = await db.vehicle.findFirst({ where: { id: vehicleId, deletedAt: null } })
+    if (!vehicle) throw Errors.vehicleNotFound()
+
+    if (vehicle.status === input.status) return this.toDetail(vehicle)
+
+    const updated = await this.prisma.raw.$transaction(async (tx: Prisma.TransactionClient) => {
+      const next = await tx.vehicle.update({
+        where: { id: vehicleId },
+        data: { status: input.status },
+      })
+      if (input.status !== 'ACTIVE') {
+        await tx.reminder.updateMany({
+          where: {
+            workspaceId,
+            vehicleId,
+            status: { in: ['SCHEDULED', 'DUE', 'SENT', 'SNOOZED'] },
+          },
+          data: { status: 'CANCELLED' },
+        })
+      }
+      return next
+    })
+
+    await this.audit.record({
+      workspaceId,
+      actorUserId: userId,
+      action: 'vehicle.status_changed',
+      resourceType: 'vehicle',
+      resourceId: vehicleId,
+      metadata: { from: vehicle.status, to: input.status, reason: input.reason ?? null },
+    })
+    return this.toDetail(updated)
+  }
+
+  /**
+   * Soft delete: "entered in error", hidden everywhere, recoverable.
+   *
+   * A vehicle is NEVER hard-deleted by a user action (DATABASE.md §5 rule 1). The history
+   * rows are left exactly as they are, so restoring brings back a complete record rather
+   * than an empty shell.
+   */
+  async softDelete(workspaceId: string, vehicleId: string, userId: string) {
+    const db = this.prisma.forWorkspace(workspaceId)
+    const vehicle = await db.vehicle.findFirst({ where: { id: vehicleId, deletedAt: null } })
+    if (!vehicle) throw Errors.vehicleNotFound()
+
+    await this.prisma.raw.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.vehicle.update({
+        where: { id: vehicleId },
+        data: { deletedAt: new Date() },
+      })
+      await tx.reminder.updateMany({
+        where: {
+          workspaceId,
+          vehicleId,
+          status: { in: ['SCHEDULED', 'DUE', 'SENT', 'SNOOZED'] },
+        },
+        data: { status: 'CANCELLED' },
+      })
+    })
+
+    await this.audit.record({
+      workspaceId,
+      actorUserId: userId,
+      action: 'vehicle.deleted',
+      resourceType: 'vehicle',
+      resourceId: vehicleId,
+      metadata: {
+        soft: true,
+        registrationNumber: vehicle.registrationNumber,
+        // Recorded so the audit trail can say what was hidden, and for how long.
+        status: vehicle.status,
+      },
+    })
+  }
+
+  /** Brings back a vehicle deleted in error, with its history intact. */
+  async restore(workspaceId: string, vehicleId: string, userId: string) {
+    // The tenant client scopes by workspace; the row is found despite being deleted,
+    // which is the one place a deleted vehicle must still be reachable.
+    const db = this.prisma.forWorkspace(workspaceId)
+    const vehicle = await db.vehicle.findFirst({
+      where: { id: vehicleId, deletedAt: { not: null } },
+    })
+    if (!vehicle) throw Errors.vehicleNotFound()
+
+    /**
+     * The registration uniqueness index is partial (`WHERE deleted_at IS NULL`), so
+     * deleting a vehicle frees its plate — deliberately, since the usual reason to delete
+     * one is that it was entered wrongly. That leaves one collision: the plate was reused
+     * while this vehicle was hidden, and clearing `deleted_at` would now put two live rows
+     * on the same registration. Postgres rejects it either way; without this check the
+     * user gets a 500 instead of being told what happened.
+     */
+    if (vehicle.registrationNumber) {
+      const clash = await db.vehicle.findFirst({
+        where: {
+          registrationNumber: vehicle.registrationNumber,
+          deletedAt: null,
+          id: { not: vehicleId },
+        },
+      })
+      if (clash) throw Errors.registrationReused(vehicle.registrationNumber)
+    }
+
+    const restored = await db.vehicle.update({
+      where: { id: vehicleId },
+      data: { deletedAt: null },
+    })
+    await this.audit.record({
+      workspaceId,
+      actorUserId: userId,
+      action: 'vehicle.restored',
+      resourceType: 'vehicle',
+      resourceId: vehicleId,
+      metadata: { registrationNumber: vehicle.registrationNumber },
+    })
+    return this.toDetail(restored)
+  }
+
+  /** Vehicles hidden by a soft delete, so one deleted in error can be found again. */
+  async listDeleted(workspaceId: string) {
+    const db = this.prisma.forWorkspace(workspaceId)
+    const vehicles = await db.vehicle.findMany({
+      where: { deletedAt: { not: null } },
+      orderBy: { deletedAt: 'desc' },
+    })
+    return vehicles.map((v: Vehicle) => ({
+      ...this.toSummary(v),
+      deletedAt: v.deletedAt?.toISOString() ?? null,
+    }))
   }
 
   async get(workspaceId: string, vehicleId: string) {

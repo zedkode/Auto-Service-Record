@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkUpload, extensionOf, looksLike, storageKey, MAX_BYTES } from './policy.js'
-import { sanitiseFilename } from './s3.storage.js'
+import { contentDisposition, sanitiseFilename } from './s3.storage.js'
 
 const ok = (over: Partial<Parameters<typeof checkUpload>[0]> = {}) =>
   checkUpload({
@@ -199,5 +199,46 @@ describe('sanitiseFilename', () => {
   })
   it('never returns an empty name', () => {
     expect(sanitiseFilename('   ')).toBe('document')
+  })
+})
+
+describe('contentDisposition (RFC 6266)', () => {
+  it('always forces a download', () => {
+    expect(contentDisposition('invoice.pdf')).toMatch(/^attachment;/)
+  })
+
+  it('sends a plain ASCII name for clients that only read filename=', () => {
+    expect(contentDisposition('invoice.pdf')).toContain('filename="invoice.pdf"')
+  })
+
+  it('encodes a non-ASCII name instead of mangling it in a latin-1 header', () => {
+    // Placed raw, "фактура.pdf" arrives as mojibake; filename* is the RFC's answer.
+    const value = contentDisposition('фактура.pdf')
+    expect(value).toContain("filename*=UTF-8''")
+    expect(value).toContain(encodeURIComponent('фактура.pdf'))
+    // And the ASCII fallback carries no bytes outside the printable range.
+    const fallback = /filename="([^"]*)"/.exec(value)![1]!
+    expect(fallback).toMatch(/^[\x20-\x7e]*$/)
+  })
+
+  it('STRIPS a right-to-left override, which fakes an extension', () => {
+    // "invoice\u202Efdp.pdf" renders as "invoicefdp.pdf" reversed — a way to show .exe
+    // as .pdf and vice versa.
+    const value = contentDisposition('invoice\u202Efdp.pdf')
+    expect(value).not.toContain('\u202e')
+    expect(value).not.toContain('%E2%80%AE')
+  })
+
+  it('strips every bidi control, not just the override', () => {
+    for (const ch of ['\u202a', '\u202b', '\u202c', '\u202d', '\u2066', '\u2069']) {
+      expect(sanitiseFilename(`a${ch}b.pdf`)).toBe('ab.pdf')
+    }
+  })
+
+  it('still refuses to let a filename forge a second header', () => {
+    const value = contentDisposition('a"\r\nX-Evil: 1.pdf')
+    expect(value).not.toContain('\r')
+    expect(value).not.toContain('\n')
+    expect(value).not.toContain('X-Evil: 1"')
   })
 })

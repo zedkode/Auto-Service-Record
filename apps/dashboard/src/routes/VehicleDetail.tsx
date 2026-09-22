@@ -24,6 +24,7 @@ import { AddServiceDialog } from '../components/AddServiceDialog.js'
 import { ServiceHistoryPanel } from '../components/ServiceHistoryPanel.js'
 import { MaintenancePanel } from '../components/MaintenancePanel.js'
 import { OwnershipPanel } from '../components/OwnershipPanel.js'
+import { VehicleLifecycle } from '../components/VehicleLifecycle.js'
 import { ExpensesPanel } from '../components/ExpensesPanel.js'
 import { DocumentsPanel } from '../components/DocumentsPanel.js'
 import { FuelPanel } from '../components/FuelPanel.js'
@@ -342,6 +343,20 @@ function OverviewTab({
                 {label}
               </Button>
             ))}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="This vehicle"
+            description="Selling or storing a vehicle keeps its full history. Removing one hides it, and can be undone."
+          />
+          <CardBody>
+            <VehicleLifecycle
+              vehicleId={v.id}
+              status={v.status}
+              vehicleName={`${v.manufacturer} ${v.model}`}
+            />
           </CardBody>
         </Card>
       </div>

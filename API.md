@@ -275,13 +275,14 @@ matches the invitation** — otherwise forwarding the email would be an access g
 ### 6.4 Vehicles — `/workspaces/:ws/vehicles`
 
 ```text
-GET    .../vehicles                            list + filters + search
+GET    .../vehicles?includeInactive=true       list; inactive hidden unless asked for
 POST   .../vehicles                            vehicle:create (entitlement-checked)
-GET    .../vehicles/:id                        vehicle:read
+GET    .../vehicles/deleted                    vehicle:read — the restore list
+GET    .../vehicles/:id                        vehicle:read (works for inactive vehicles)
 PATCH  .../vehicles/:id                        vehicle:update
-DELETE .../vehicles/:id                        vehicle:delete (soft)
-POST   .../vehicles/:id/archive                vehicle:update
-POST   .../vehicles/:id/restore                vehicle:update
+PATCH  .../vehicles/:id/status                 vehicle:update — lifecycle transition
+DELETE .../vehicles/:id                        vehicle:delete — soft, 204
+POST   .../vehicles/:id/restore                vehicle:delete — undoes the soft delete
 GET    .../vehicles/:id/summary                dashboard card payload
 GET    .../vehicles/:id/timeline               merged chronological events
 GET    .../vehicles/:id/images
@@ -293,6 +294,25 @@ PUT    .../vehicles/:id/images/:imageId/primary
 `GET /vehicles/:id/timeline` merges services, inspections, insurance, tax, fuel, expenses,
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
+
+**Lifecycle.** `PATCH /vehicles/:id/status` takes `{ status, reason?, occurredOn? }` where
+`status` is one of `ACTIVE`, `SOLD`, `SCRAPPED` or `ARCHIVED`. Moving out of `ACTIVE`
+cancels the vehicle's open reminders ([D-083]); moving back to `ACTIVE` does not
+resurrect them — the scheduler regenerates them from the inspection and policy dates.
+Inactive vehicles are excluded from the garage list, the dashboard and cost reports, but
+remain readable by id and appear under `?includeInactive=true`.
+
+**Deletion is never destructive.** `DELETE /vehicles/:id` sets `deleted_at` and returns
+`204`; nothing is removed. The vehicle disappears from every list and from every cost
+total, and `GET /vehicles/deleted` then `POST /vehicles/:id/restore` bring it back with
+its full history ([D-082]). The registration uniqueness index is partial
+(`WHERE deleted_at IS NULL`), so deleting a vehicle frees its plate for immediate reuse.
+If the plate has been reused, restoring the original returns `409 REGISTRATION_REUSED`
+naming the vehicle that now holds it, and the original stays deleted. Workspace-level
+erasure under GDPR is a separate operation.
+
+`PATCH /status`, `DELETE` and `POST /restore` each write an audit entry
+(`vehicle.status_changed`, `vehicle.deleted`, `vehicle.restored`).
 
 ### 6.5 Odometer, services, maintenance
 

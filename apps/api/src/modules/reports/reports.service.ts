@@ -47,6 +47,9 @@ export class ReportsService {
       deletedAt: null,
       incurredOn: period,
       ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {}),
+      // A soft-deleted vehicle is hidden from all reads, so its costs leave the totals
+      // with it. Workspace-level costs (no vehicle) are unaffected.
+      OR: [{ vehicleId: null }, { vehicle: { deletedAt: null } }],
     }
     const odometerWhere: Prisma.OdometerEntryWhereInput = {
       recordedOn: period,

@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'OWNER_REQUIRED'
   | 'VEHICLE_NOT_FOUND'
   | 'DUPLICATE_REGISTRATION'
+  | 'REGISTRATION_REUSED'
   | 'VEHICLE_ARCHIVED'
   | 'ODOMETER_REGRESSION'
   | 'ODOMETER_FUTURE_DATE'
@@ -68,6 +69,18 @@ export const Errors = {
     new DomainError(
       'DUPLICATE_REGISTRATION',
       `A vehicle with registration ${reg} already exists in this workspace.`,
+      409,
+    ),
+  /**
+   * Restoring a soft-deleted vehicle whose plate has since been given to another vehicle.
+   * Distinct from DUPLICATE_REGISTRATION because the user did not type a registration
+   * here — they pressed Restore — so "already exists" would read as a non-sequitur.
+   */
+  registrationReused: (reg: string) =>
+    new DomainError(
+      'REGISTRATION_REUSED',
+      `Registration ${reg} now belongs to another vehicle in this workspace. ` +
+        'Change that vehicle’s registration first, then restore this one.',
       409,
     ),
   odometerRegression: (latest: number, unit: string) =>

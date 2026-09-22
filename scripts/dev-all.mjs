@@ -34,21 +34,42 @@ const C = {
 }
 
 const SERVICES = [
+  // The TypeScript services are compiled to `dist` and run from it, so each needs two
+  // processes: a compiler watching the source, and node watching the compiler's output.
+  // Without the pair, editing API source changes nothing until somebody remembers to
+  // rebuild — and a stack that silently serves stale code is worse than one that is down,
+  // because it answers.
+  {
+    name: 'api:tsc',
+    colour: C.grey,
+    cwd: 'apps/api',
+    cmd: 'pnpm',
+    args: ['exec', 'tsc', '-p', 'tsconfig.json', '--watch', '--preserveWatchOutput'],
+    port: null,
+  },
   {
     name: 'api',
     colour: C.cyan,
     cwd: 'apps/api',
     cmd: 'node',
-    args: ['--enable-source-maps', 'dist/main.js'],
+    args: ['--watch', '--enable-source-maps', 'dist/main.js'],
     port: Number(env.API_PORT ?? 4100),
     build: true,
+  },
+  {
+    name: 'worker:tsc',
+    colour: C.grey,
+    cwd: 'apps/worker',
+    cmd: 'pnpm',
+    args: ['exec', 'tsc', '-p', 'tsconfig.json', '--watch', '--preserveWatchOutput'],
+    port: null,
   },
   {
     name: 'worker',
     colour: C.magenta,
     cwd: 'apps/worker',
     cmd: 'node',
-    args: ['--enable-source-maps', 'dist/main.js'],
+    args: ['--watch', '--enable-source-maps', 'dist/main.js'],
     port: null,
     build: true,
   },
@@ -165,6 +186,11 @@ function start(service) {
   child.on('exit', (code, signal) => {
     if (shuttingDown) return
     console.log(`${label} ${C.red}exited (code=${code} signal=${signal})${C.reset}`)
+    if (service.port) {
+      console.log(
+        `${label} ${C.dim}nothing is listening on ${service.port} now — restart the stack.${C.reset}`,
+      )
+    }
   })
 
   children.push({ service, child })
@@ -196,7 +222,10 @@ setTimeout(() => {
   )
   console.log(`  ${C.grey}Mailpit    http://localhost:${env.MAILPIT_UI_PORT ?? 58025}${C.reset}`)
   console.log(`  ${C.grey}MinIO      http://localhost:${env.MINIO_CONSOLE_PORT ?? 59001}${C.reset}`)
-  console.log(`\n${C.dim}Ctrl-C to stop everything.${C.reset}\n`)
+  console.log(
+    `\n${C.dim}Source changes recompile and reload automatically (api, worker, and the Vite apps).${C.reset}`,
+  )
+  console.log(`${C.dim}Ctrl-C to stop everything.${C.reset}\n`)
 }, 3500)
 
 process.on('SIGINT', () => void shutdown('SIGINT'))

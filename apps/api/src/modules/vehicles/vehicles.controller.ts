@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common'
-import { createOdometerEntrySchema, createVehicleSchema } from '@autoservices/validation'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
+import {
+  changeVehicleStatusSchema,
+  createOdometerEntrySchema,
+  createVehicleSchema,
+} from '@autoservices/validation'
 import { VehiclesService } from './vehicles.service.js'
 import { zodBody } from '../../common/pipes/zod-validation.pipe.js'
 import {
@@ -14,10 +18,23 @@ import {
 export class VehiclesController {
   constructor(private readonly vehicles: VehiclesService) {}
 
+  @Get('deleted')
+  @RequirePermission('vehicle:read')
+  async listDeleted(@CurrentWorkspace() ws: WorkspaceContext) {
+    const data = await this.vehicles.listDeleted(ws.workspaceId)
+    return { data, meta: { total: data.length } }
+  }
+
   @Get()
   @RequirePermission('vehicle:read')
-  async list(@CurrentWorkspace() ws: WorkspaceContext) {
-    return { data: await this.vehicles.list(ws.workspaceId) }
+  async list(
+    @CurrentWorkspace() ws: WorkspaceContext,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
+    const data = await this.vehicles.list(ws.workspaceId, {
+      includeInactive: includeInactive === 'true',
+    })
+    return { data, meta: { total: data.length } }
   }
 
   @Post()
@@ -73,5 +90,39 @@ export class VehiclesController {
       body as never,
     )
     return { data }
+  }
+  @Patch(':vehicleId/status')
+  @RequirePermission('vehicle:update')
+  async changeStatus(
+    @CurrentWorkspace() ws: WorkspaceContext,
+    @CurrentUser() user: AuthedUser,
+    @Param('vehicleId') vehicleId: string,
+    @Body(zodBody(changeVehicleStatusSchema)) body: unknown,
+  ) {
+    return {
+      data: await this.vehicles.changeStatus(ws.workspaceId, vehicleId, user.id, body as never),
+    }
+  }
+
+  /** Soft delete. A vehicle is never removed outright by a user (DATABASE.md §5). */
+  @Delete(':vehicleId')
+  @HttpCode(204)
+  @RequirePermission('vehicle:delete')
+  async remove(
+    @CurrentWorkspace() ws: WorkspaceContext,
+    @CurrentUser() user: AuthedUser,
+    @Param('vehicleId') vehicleId: string,
+  ) {
+    await this.vehicles.softDelete(ws.workspaceId, vehicleId, user.id)
+  }
+
+  @Post(':vehicleId/restore')
+  @RequirePermission('vehicle:delete')
+  async restore(
+    @CurrentWorkspace() ws: WorkspaceContext,
+    @CurrentUser() user: AuthedUser,
+    @Param('vehicleId') vehicleId: string,
+  ) {
+    return { data: await this.vehicles.restore(ws.workspaceId, vehicleId, user.id) }
   }
 }

@@ -12,21 +12,75 @@ referencing the old one.
 
 ---
 
----
+## 2026-09-22 — Document pen test and vehicle lifecycle
 
----
+### D-083 · Leaving `ACTIVE` cancels the vehicle's open reminders
+`changeStatus` cancels every `DUE`/`UPCOMING` reminder on a vehicle that moves to `SOLD`,
+`SCRAPPED` or `ARCHIVED`. **Why:** a reminder is a claim on the user's attention, and the
+MOT of a car sold three months ago is not one. Left alone, the notification engine would
+keep emailing about a vehicle the user no longer owns, which is the fastest way to teach
+somebody to ignore this product's email. **Alternative considered:** filtering inactive
+vehicles out at send time. Rejected — the same filter would then have to be repeated in
+the digest, the dashboard and the reminder list, and a miss in any one of them sends the
+email. Cancelling once at the transition puts the rule in a single place.
+**Consequence:** returning a vehicle to `ACTIVE` does not resurrect the cancelled
+reminders; the scheduler regenerates them from the inspection and policy dates on its next
+run, which is the same path that created them originally.
 
----
+### D-082 · A vehicle is never hard-deleted by a user action
+`DELETE /vehicles/:id` sets `deleted_at` and returns 204. The row, its services, fills,
+odometer history, inspections and documents all stay exactly where they were, and
+`GET /vehicles/deleted` plus `POST /vehicles/:id/restore` bring it back whole. **Why:**
+this product's entire proposition is that it remembers what happened to a car. A confirm
+dialog is not adequate protection for eleven years of service history against one
+mis-aimed click, and the person who deletes a vehicle by mistake is precisely the person
+who most needs the history back. **Alternative considered:** a hard delete behind a typed
+confirmation. Rejected for user data; it remains the right shape for the workspace-level
+erasure that GDPR requires, which is a different operation with a different blast radius
+(`GDPR-002`). **Consequence:** every read path must exclude soft-deleted vehicles
+explicitly — reports, the expense list and the dashboard now filter on
+`vehicle: { deletedAt: null }`, and any new aggregate over vehicles must do the same.
 
----
+The registration uniqueness index is partial (`WHERE deleted_at IS NULL`), so a deleted
+vehicle releases its plate — correct, because the commonest reason to delete one is that
+it was entered wrongly and is about to be entered again properly. The cost is a collision
+that only exists because deletion is reversible: reuse the plate, then restore the
+original, and two live rows would share one registration. Postgres refuses, and before
+this was handled the user got a 500 from a button labelled Restore. `restore()` now checks
+first and returns `409 REGISTRATION_REUSED` naming what happened, with the vehicle left
+deleted rather than half-restored. **Found by testing the interaction, not by reading the
+code** — each half is obviously right on its own, which is exactly why the pair was not
+noticed.
 
----
+### D-081 · Filenames are encoded per RFC 6266, and bidi controls are stripped
+`contentDisposition()` emits both `filename=` (ASCII-folded) and `filename*=UTF-8''…`
+(percent-encoded), and `sanitiseFilename()` removes U+202A–U+202E and U+2066–U+2069.
+**Why:** the pen test found a real, if low-severity, defect — a non-ASCII filename went
+into a header that is latin-1 by definition, so `Ремонт.pdf` reached the browser as
+mojibake and some clients dropped the download. The bidi strip addresses the related
+trick: `invoice‮gnp.exe` renders as `invoiceexe.png` in a file manager while
+remaining an executable. Neither is a breach, and both are the kind of thing a user
+experiences as "this app corrupted my file". **Alternative considered:** rejecting
+non-ASCII filenames at upload. Rejected — it would refuse legitimate Romanian, Cyrillic
+and Greek filenames, which is worse than encoding them correctly.
+**Consequence:** six tests in `packages/storage/src/policy.test.ts` pin the encoding, the
+folding and the control-character strip.
 
----
-
----
-
----
+### D-080 · The document pipeline was attacked before it was declared safe
+`scripts/pentest-documents.mjs` runs 21 adversarial requests against the running stack in
+eight groups: cross-tenant object access, presigned-URL tampering, path traversal in
+object keys, content-type confusion, filename injection into headers, permission bypass on
+private documents, URL expiry and replay, and enumeration of object keys. All 21 are
+refused; the single genuine finding was the filename encoding fixed in [D-081].
+**Why this is written down:** `HARD-003` is a CRITICAL task whose deliverable is evidence,
+and "I reviewed the code and it looks fine" is not evidence. The script is committed so
+the same 21 attacks re-run against every future change to the pipeline.
+**A caution recorded deliberately:** one run reported a CRITICAL "presigned GET can be
+repointed at another tenant's object". It was false — the test substituted a string that
+does not occur in the URL, so it fetched the original valid URL and read 200 as a breach.
+The check now mutates the actual object path and fails loudly if its own substitution was
+a no-op. A security script that cannot detect its own vacuous assertions produces
+confident nonsense in both directions.
 
 ---
 
