@@ -586,6 +586,31 @@ export interface FuelEconomy {
   fillCount: number
 }
 
+/** RPT-003 — monthly economy, and which way it is going. */
+export interface FuelTrendPoint {
+  period: string
+  distanceMetres: number
+  quantity: number
+  electric: boolean
+  intervalCount: number
+  litresPer100Km: number | null
+  kmPerLitre: number | null
+  milesPerImperialGallon: number | null
+  kwhPer100Km: number | null
+  milesPerKwh: number | null
+}
+
+export interface FuelTrend {
+  points: FuelTrendPoint[]
+  direction: 'IMPROVING' | 'WORSENING' | 'STABLE' | null
+  /** Percent change in consumption. Positive means using MORE fuel per distance. */
+  changePercent: number | null
+  basis: { earlier: string[]; recent: string[] } | null
+  cautions: Array<'SEASONAL_OVERLAP' | 'SPARSE_DATA'>
+  unavailableReason: 'NO_INTERVALS' | 'NOT_ENOUGH_MONTHS' | 'MIXED_ENERGY' | null
+  electric: boolean
+}
+
 // --- reports (RPT-001/002) ---
 
 export interface CostReport {

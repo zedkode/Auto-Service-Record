@@ -6,6 +6,7 @@ import { AuditService } from '../../common/audit/audit.service.js'
 import { Errors } from '../../common/errors.js'
 import { ExpenseProjectionService } from '../expenses/expense-projection.service.js'
 import { computeEconomy, type FuelFill } from './fuel.engine.js'
+import { computeFuelTrend } from './fuel.trend.engine.js'
 
 const toDateOnly = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 const dateStr = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null)
@@ -54,6 +55,44 @@ export class FuelService {
     }))
 
     return { ...computeEconomy(fills), fillCount: fills.length }
+  }
+
+  /**
+   * RPT-003 — the same intervals, grouped by the month they closed in, with a verdict on
+   * which way consumption is going. Reuses `economy()`'s rows rather than recomputing the
+   * intervals: one definition of a measurable interval, not two that can drift apart.
+   */
+  async trend(workspaceId: string, vehicleId: string) {
+    const db = this.prisma.forWorkspace(workspaceId)
+    const rows = await db.fuelEntry.findMany({
+      where: { vehicleId, deletedAt: null },
+      orderBy: { odometer: 'asc' },
+      select: {
+        id: true,
+        filledOn: true,
+        odometer: true,
+        odometerUnit: true,
+        quantity: true,
+        quantityUnit: true,
+        isFullTank: true,
+        missedFill: true,
+      },
+    })
+
+    const fills: FuelFill[] = rows.map((r) => ({
+      id: r.id,
+      filledOn: dateStr(r.filledOn)!,
+      odometer: r.odometer,
+      odometerUnit: r.odometerUnit,
+      quantity: Number(r.quantity),
+      quantityUnit: r.quantityUnit,
+      isFullTank: r.isFullTank,
+      missedFill: r.missedFill,
+    }))
+
+    const { intervals } = computeEconomy(fills)
+    const dates = new Map(fills.map((f) => [f.id, f.filledOn]))
+    return computeFuelTrend(intervals, dates)
   }
 
   async create(

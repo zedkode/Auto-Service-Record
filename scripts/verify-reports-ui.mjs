@@ -85,8 +85,24 @@ try {
   await page.screenshot({ path: '/tmp/shot-reports-empty.png' })
 
   console.log('\n[5] Record a cost and the report picks it up')
-  const wsId = sql(`SELECT id FROM workspaces WHERE name='My Garage' LIMIT 1;`)
-  const vId = sql(`SELECT id FROM vehicles WHERE workspace_id='${wsId}' LIMIT 1;`)
+  /**
+   * The DEMO workspace, identified by its owner. Matching on the name alone picked an
+   * arbitrary row: every script here registers a user, and a new user's first workspace is
+   * also called "My Garage", so a leftover from an earlier run could win the `LIMIT 1` and
+   * hand back a workspace with no vehicles.
+   */
+  const wsId = sql(
+    `SELECT w.id FROM workspaces w
+       JOIN users u ON u.id = w.owner_user_id
+      WHERE u.email = 'andrei@autoservices.local'
+      ORDER BY w.created_at
+      LIMIT 1;`,
+  )
+  const vId = sql(
+    `SELECT id FROM vehicles WHERE workspace_id='${wsId}' AND deleted_at IS NULL
+      ORDER BY created_at LIMIT 1;`,
+  )
+  if (!wsId || !vId) throw new Error(`demo workspace/vehicle not found (ws=${wsId} v=${vId})`)
   sql(
     `INSERT INTO expenses (workspace_id, vehicle_id, incurred_on, amount, currency, description, source_type, updated_at)
      VALUES ('${wsId}', '${vId}', '${year}-06-15', 250.00, 'GBP', 'UI report check', 'MANUAL', now());`,

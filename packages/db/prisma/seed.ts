@@ -81,6 +81,162 @@ const SERVICE_CATEGORIES: Array<{
   { key: 'other', name: 'Other' },
 ]
 
+const MILES_TO_KM = 1.609344
+
+/**
+ * Fortnightly full fills for a vehicle, so the demo workspace shows what fuel tracking and
+ * the consumption trend (RPT-003) actually look like. Without this the two features are
+ * invisible until somebody types in a year of receipts by hand.
+ *
+ * Odometer readings are interpolated from the vehicle's own mileage history, so a fill
+ * never contradicts a reading or runs backwards. Consumption drifts upward over the last
+ * few months — a car that is quietly getting thirstier is the case the trend exists to
+ * catch, and a flat line would demonstrate nothing.
+ */
+function fuelPlan(readings: Array<{ value: number; day: number }>) {
+  const odometerOn = (day: number) => {
+    const sorted = [...readings].sort((a, b) => b.day - a.day)
+    const first = sorted[0]!
+    const last = sorted[sorted.length - 1]!
+    if (day >= first.day) return first.value
+    if (day <= last.day) return last.value
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const a = sorted[i]!
+      const b = sorted[i + 1]!
+      if (day <= a.day && day >= b.day) {
+        const ratio = (a.day - day) / (a.day - b.day)
+        return Math.round(a.value + (b.value - a.value) * ratio)
+      }
+    }
+    return last.value
+  }
+
+  /**
+   * The gap between fills is derived from how hard the vehicle is actually driven, so a
+   * fill is a tank a driver could plausibly have bought. A fixed fortnight put 136 litres
+   * into a Mondeo — more than the car holds — which is the kind of detail that makes
+   * somebody stop trusting every other number on the page.
+   */
+  const sortedByDay = [...readings].sort((a, b) => b.day - a.day)
+  const oldest = sortedByDay[0]!
+  const newest = sortedByDay[sortedByDay.length - 1]!
+  const milesPerDay = Math.max(
+    5,
+    (newest.value - oldest.value) / Math.max(1, oldest.day - newest.day),
+  )
+  // ~45 litres a fill: a large tank, comfortably short of a Mondeo's 62.
+  const TARGET_MILES_PER_FILL = 470
+  const step = Math.min(21, Math.max(3, Math.round(TARGET_MILES_PER_FILL / milesPerDay)))
+
+  const days: number[] = []
+  for (let day = 390; day >= 4; day -= step) days.push(day)
+
+  const fills: Array<{
+    day: number
+    odometer: number
+    litres: number
+    unitPrice: string
+    total: string
+  }> = []
+
+  let previous: number | null = null
+  for (const day of days) {
+    const odometer = odometerOn(day)
+    if (previous !== null && odometer <= previous) continue
+
+    // 5.9 L/100km settling to 6.5 over the final three months.
+    const litresPer100Km = day > 90 ? 5.9 : 6.5
+    const km = previous === null ? 0 : (odometer - previous) * MILES_TO_KM
+    // The opening fill is a starting point, not a measured interval: give it a plausible
+    // tank rather than a computed one.
+    const litres = previous === null ? 52 : Math.round((km / 100) * litresPer100Km * 10) / 10
+    const unitPrice = day > 200 ? 1.429 : 1.479
+    fills.push({
+      day,
+      odometer,
+      litres,
+      unitPrice: unitPrice.toFixed(4),
+      total: (litres * unitPrice).toFixed(2),
+    })
+    previous = odometer
+  }
+  return fills
+}
+
+/**
+ * Fuel history for the demo vehicles, as its own idempotent pass.
+ *
+ * Deliberately not part of vehicle creation: that step skips vehicles that already exist,
+ * so a workspace seeded before fuel tracking shipped would never get any. This backfills
+ * whatever is missing and leaves alone whatever is not.
+ */
+async function seedFuelHistory(
+  workspaceId: string,
+  userId: string,
+  vehicles: Array<{
+    id: string
+    fuelType: 'PETROL' | 'DIESEL' | null
+    readings: Array<{ value: number; day: number }>
+  }>,
+) {
+  const fuelCategory = await prisma.expenseCategory.findFirst({
+    where: { workspaceId: null, key: 'fuel' },
+    select: { id: true },
+  })
+
+  for (const vehicle of vehicles) {
+    const existing = await prisma.fuelEntry.count({ where: { vehicleId: vehicle.id } })
+    if (existing > 0) {
+      console.log(`  fuel history already present for ${vehicle.id}, skipping`)
+      continue
+    }
+
+    const plan = fuelPlan(vehicle.readings)
+    await prisma.$transaction(async (tx) => {
+      for (const f of plan) {
+        const entry = await tx.fuelEntry.create({
+          data: {
+            workspaceId,
+            vehicleId: vehicle.id,
+            filledOn: dateOnly(daysAgo(f.day)),
+            odometer: f.odometer,
+            odometerUnit: 'MILES',
+            quantity: f.litres,
+            quantityUnit: 'LITRES',
+            totalAmount: f.total,
+            unitPrice: f.unitPrice,
+            currency: 'GBP',
+            fuelType: vehicle.fuelType,
+            isFullTank: true,
+            stationName: 'Shell Fosse Park',
+            createdByUserId: userId,
+          },
+        })
+        // `expenses` is the single cost surface (DECISIONS.md D-004): a fill that skipped
+        // it would leave the demo's cost report quietly understating what the car costs.
+        await tx.expense.create({
+          data: {
+            workspaceId,
+            vehicleId: vehicle.id,
+            categoryId: fuelCategory?.id ?? null,
+            incurredOn: dateOnly(daysAgo(f.day)),
+            amount: f.total,
+            currency: 'GBP',
+            vendorName: 'Shell Fosse Park',
+            odometer: f.odometer,
+            odometerUnit: 'MILES',
+            description: `Fuel — ${f.litres} litres`,
+            sourceType: 'FUEL',
+            sourceRecordId: entry.id,
+            createdByUserId: userId,
+          },
+        })
+      }
+    })
+    console.log(`  seeded ${plan.length} fills for ${vehicle.id}`)
+  }
+}
+
 async function seedServiceCategories() {
   let created = 0
   for (const [i, c] of SERVICE_CATEGORIES.entries()) {
@@ -336,6 +492,21 @@ async function main() {
       console.log(`  created ${v.manufacturer} ${v.model} (${v.registrationNumber})`)
     })
   }
+
+  const demoVehicles = await prisma.vehicle.findMany({
+    where: { workspaceId: workspace.id, deletedAt: null },
+    select: { id: true, fuelType: true, registrationNumber: true },
+  })
+  await seedFuelHistory(
+    workspace.id,
+    user.id,
+    demoVehicles
+      .map((v) => {
+        const seed = vehicleSeeds.find((s) => s.registrationNumber === v.registrationNumber)
+        return seed ? { id: v.id, fuelType: v.fuelType, readings: seed.readings } : null
+      })
+      .filter((v) => v !== null),
+  )
 
   // A vehicle in the OTHER workspace — the target of the cross-tenant access tests.
   const otherVehicleExists = await prisma.vehicle.findFirst({

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright'
+import { execFileSync } from 'node:child_process'
 const D = 'http://localhost:3101'
 const errs = []
 const browser = await chromium.launch()
@@ -6,6 +7,23 @@ const page = await (await browser.newContext({ viewport: { width: 1440, height: 
 page.on('pageerror', (e) => errs.push(e.message))
 
 const ok = (s) => console.log(`  ✓ ${s}`)
+const sql = (q) =>
+  execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'autoservices-postgres',
+      'psql',
+      '-U',
+      'autoservices',
+      '-d',
+      'autoservices',
+      '-tAc',
+      q,
+    ],
+    { encoding: 'utf8' },
+  ).trim()
 const email = `newuser-${Date.now()}@example.com`
 
 try {
@@ -16,8 +34,15 @@ try {
   await page.fill('input[name="displayName"]', 'Fresh User')
   await page.fill('input[name="email"]', email)
   await page.fill('input[name="password"]', 'a-properly-long-password')
+  // The form gained a confirmation field and a terms checkbox after this script was
+  // written; without them the submit is refused and the failure looks like a dead page.
+  await page.fill('input[name="passwordConfirmation"]', 'a-properly-long-password')
+  await page.check('input[name="acceptTerms"]')
   await page.click('button[type="submit"]')
-  await page.waitForSelector('text=No vehicles yet', { timeout: 15000 })
+  // The overview's empty state, which now reads "Make room for your first vehicle"
+  // (apps/dashboard/src/lib/dashboard-copy.ts). Matched on the heading rather than on
+  // wording that has already changed once.
+  await page.waitForSelector('text=Make room for your first vehicle', { timeout: 15000 })
   ok('registered; personal workspace auto-created; correct EMPTY state shown')
 
   console.log('\n[B] New user sees ONLY their own (zero) vehicles')
@@ -64,8 +89,11 @@ try {
 
   console.log('\n[E] Sign out')
   await page.goto(D, { waitUntil: 'networkidle' })
-  await page.click('button[aria-label="Account menu"]')
-  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  // Labelled "Account" (apps/dashboard/src/lib/shell-copy.ts); it was "Account menu" when
+  // this script was written.
+  await page.click('button[aria-label="Account"]')
+  // The account control is a dialog with a button now, not a menu with menuitems.
+  await page.getByRole('button', { name: 'Sign out' }).click()
   await page.waitForSelector('text=Sign in to AutoServices', { timeout: 10000 })
   ok('signed out; returned to sign-in')
 
@@ -77,4 +105,29 @@ try {
   process.exitCode = 1
 } finally {
   await browser.close()
+  /**
+   * Remove the user this run created. Every run used to leave a registered user behind,
+   * each with a workspace also called "My Garage" — which is how `verify-reports-ui.mjs`
+   * came to pick an empty leftover instead of the demo workspace. A verification script
+   * that grows the database every time it runs eventually breaks a different one.
+   */
+  const uq = `(SELECT id FROM users WHERE email='${email}')`
+  const wq = `(SELECT id FROM workspaces WHERE owner_user_id IN ${uq})`
+  for (const t of [
+    'expenses',
+    'odometer_entries',
+    'fuel_entries',
+    'reminders',
+    'notifications',
+    'audit_logs',
+  ]) {
+    sql(`DELETE FROM ${t} WHERE workspace_id IN ${wq};`)
+  }
+  sql(`DELETE FROM vehicles WHERE workspace_id IN ${wq};`)
+  sql(`DELETE FROM workspace_members WHERE workspace_id IN ${wq} OR user_id IN ${uq};`)
+  sql(`DELETE FROM workspaces WHERE id IN ${wq};`)
+  sql(`DELETE FROM sessions WHERE user_id IN ${uq};`)
+  sql(`DELETE FROM user_profiles WHERE user_id IN ${uq};`)
+  sql(`DELETE FROM email_verification_tokens WHERE user_id IN ${uq};`)
+  sql(`DELETE FROM users WHERE email='${email}';`)
 }

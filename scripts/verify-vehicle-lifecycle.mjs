@@ -20,8 +20,18 @@ const fail = (s) => {
 const sql = (q) =>
   execFileSync(
     'docker',
-    ['exec', '-i', 'autoservices-postgres', 'psql', '-U', 'autoservices', '-d', 'autoservices',
-     '-tAc', q],
+    [
+      'exec',
+      '-i',
+      'autoservices-postgres',
+      'psql',
+      '-U',
+      'autoservices',
+      '-d',
+      'autoservices',
+      '-tAc',
+      q,
+    ],
     { encoding: 'utf8' },
   ).trim()
 
@@ -48,7 +58,9 @@ const reg = await fetch(`${API}/auth/register`, {
   }),
 })
 if (!reg.ok) throw new Error(`register failed: ${reg.status}`)
-const cookie = (reg.headers.getSetCookie?.()[0] ?? reg.headers.get('set-cookie') ?? '').split(';')[0]
+const cookie = (reg.headers.getSetCookie?.()[0] ?? reg.headers.get('set-cookie') ?? '').split(
+  ';',
+)[0]
 const session = await (await fetch(`${API}/auth/session`, { headers: { cookie } })).json()
 const ws = session.data.workspaces[0].id
 
@@ -154,9 +166,7 @@ try {
   console.log('\n[5] Removing one entered in error hides it without destroying it')
   const removed = await call(`/vehicles/${vehicle.id}`, { method: 'DELETE' })
   // `::text` on a boolean yields 'true'/'false' — psql's 't'/'f' is only its display form.
-  const row = sql(
-    `SELECT (deleted_at IS NOT NULL)::text FROM vehicles WHERE id='${vehicle.id}';`,
-  )
+  const row = sql(`SELECT (deleted_at IS NOT NULL)::text FROM vehicles WHERE id='${vehicle.id}';`)
   removed.status === 204 && row === 'true' && history(vehicle.id) === before
     ? ok('row retained with deleted_at set; history untouched')
     : fail(`delete wrong: ${removed.status}, deleted=${row}`)
@@ -203,10 +213,20 @@ try {
   const uq = `(SELECT id FROM users WHERE email='${EMAIL}')`
   const wq = `(SELECT id FROM workspaces WHERE owner_user_id IN ${uq})`
   for (const t of [
-    'expenses', 'odometer_entries', 'fuel_entries', 'service_record_parts',
-    'maintenance_completions', 'maintenance_rules', 'service_records',
-    'inspection_advisories', 'vehicle_inspections', 'insurance_policies',
-    'road_tax_records', 'reminders', 'notifications', 'audit_logs',
+    'expenses',
+    'odometer_entries',
+    'fuel_entries',
+    'service_record_parts',
+    'maintenance_completions',
+    'maintenance_rules',
+    'service_records',
+    'inspection_advisories',
+    'vehicle_inspections',
+    'insurance_policies',
+    'road_tax_records',
+    'reminders',
+    'notifications',
+    'audit_logs',
   ]) {
     sql(`DELETE FROM ${t} WHERE workspace_id IN ${wq};`)
   }
@@ -219,4 +239,6 @@ try {
   sql(`DELETE FROM users WHERE email='${EMAIL}';`)
 }
 
-console.log(process.exitCode ? '\nLIFECYCLE VERIFICATION FAILED\n' : '\nVEHICLE LIFECYCLE VERIFIED\n')
+console.log(
+  process.exitCode ? '\nLIFECYCLE VERIFICATION FAILED\n' : '\nVEHICLE LIFECYCLE VERIFIED\n',
+)

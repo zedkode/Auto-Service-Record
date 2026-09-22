@@ -9,6 +9,7 @@ import type {
   DownloadLink,
   DueMaintenanceItem,
   FuelEconomy,
+  FuelTrend,
   FuelEntry,
   Expense,
   ExpenseCategory,
@@ -302,6 +303,8 @@ export function createApi(client: ApiClient) {
         client.get<FuelEntry[]>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel`),
       economy: (ws: string, vehicleId: string) =>
         client.get<FuelEconomy>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel/economy`),
+      trend: (ws: string, vehicleId: string) =>
+        client.get<FuelTrend>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel/trend`),
       create: (ws: string, vehicleId: string, input: Record<string, unknown>) =>
         client.post<FuelEntry>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel`, input),
       update: (ws: string, id: string, input: Record<string, unknown>) =>

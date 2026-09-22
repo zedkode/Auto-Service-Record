@@ -18,6 +18,7 @@ import {
   formatMoney,
 } from '@autoservices/ui'
 import { ApiError, type FuelEconomy, type FuelEntry } from '@autoservices/api-client'
+import { FuelTrendCard } from './FuelTrendCard.js'
 import { api } from '../lib/api.js'
 import { useSession } from '../lib/use-session.js'
 
@@ -68,6 +69,14 @@ export function FuelPanel({ vehicleId }: { vehicleId: string }) {
     queryKey: ['fuel-economy', workspace.id, vehicleId],
     queryFn: () => api.fuel.economy(workspace.id, vehicleId),
   })
+  /**
+   * Separate from the economy query on purpose: the trend is a nice-to-have, and a panel
+   * that refuses to render its fill history because a chart failed would be a poor trade.
+   */
+  const trend = useQuery({
+    queryKey: ['fuel-trend', workspace.id, vehicleId],
+    queryFn: () => api.fuel.trend(workspace.id, vehicleId),
+  })
 
   // Checked as one condition for the reader, but narrowed on the data itself: a combined
   // isPending check does not narrow both queries for TypeScript.
@@ -104,6 +113,8 @@ export function FuelPanel({ vehicleId }: { vehicleId: string }) {
       </div>
 
       <EconomyCard economy={economy.data} />
+
+      {trend.data && <FuelTrendCard trend={trend.data} />}
 
       <Card className="mt-6">
         <CardHeader title="Fill history" description="Newest first, ordered by mileage." />
@@ -216,6 +227,7 @@ function FillRow({
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['fuel', workspace.id, vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['fuel-economy', workspace.id, vehicleId] }),
+        queryClient.invalidateQueries({ queryKey: ['fuel-trend', workspace.id, vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['expenses', workspace.id, vehicleId] }),
       ]),
   })
@@ -277,6 +289,7 @@ function AddFillDialog({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['fuel', workspace.id, vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['fuel-economy', workspace.id, vehicleId] }),
+        queryClient.invalidateQueries({ queryKey: ['fuel-trend', workspace.id, vehicleId] }),
         // A fill is a mileage reading and a cost, so both of those views are now stale.
         queryClient.invalidateQueries({ queryKey: ['odometer', workspace.id, vehicleId] }),
         queryClient.invalidateQueries({ queryKey: ['odometer-current', workspace.id, vehicleId] }),

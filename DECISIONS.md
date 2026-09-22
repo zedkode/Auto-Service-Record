@@ -12,6 +12,55 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Fuel economy trends
+
+### D-087 · The demo workspace carries a real fill history
+`seedFuelHistory` gives each demo vehicle a year of full fills, with matching expense rows,
+in its own idempotent pass rather than inside vehicle creation. **Why:** the seed skips
+vehicles that already exist, so a workspace seeded before fuel tracking shipped would never
+have acquired any — fuel tracking and the consumption trend were both invisible in the demo
+data, which is the same as not having shipped them for anyone evaluating the product.
+**Consequence, and a correction worth keeping:** the first version spaced fills a fixed
+fortnight apart and put 136 litres into a car with a 62-litre tank. The gap is now derived
+from how hard the vehicle is actually driven, targeting ~45 litres a fill. Demo data that
+is impossible teaches the viewer to distrust every other number on the page, so it is worth
+the extra arithmetic.
+
+### D-086 · A seasonal effect is disclosed, not corrected out
+Under twelve months of history, a direction carries a `SEASONAL_OVERLAP` caution.
+**Why:** winter economy is materially worse than summer economy in a perfectly healthy car
+— cold starts, richer running, winter blends, heating load. Comparing November against
+August therefore measures the weather. **Alternatives considered:** (a) suppress the
+direction until a year of data exists — rejected, because a car that genuinely deteriorated
+over six months is exactly when the user wants to know; (b) apply a seasonal adjustment —
+rejected, because the correction would have to be invented from no data about this
+vehicle's climate or usage, and a fabricated adjustment is worse than a stated caveat.
+**Consequence:** the caution disappears on its own at twelve months.
+
+### D-085 · The trend compares consumption, never miles per gallon
+Direction is computed from litres (or kWh) per 100 km. **Why:** mpg rises as a car
+improves while L/100km falls. A verdict computed from mpg with the comparison written for
+consumption would report an improving car as worsening — and this is the one error in this
+engine a user would *act* on, by booking a service the car does not need. Consumption also
+has the property that higher is always worse, whatever the energy source, which is what
+makes one comparison work for both petrol and electric. A test asserts that mpg and the
+direction move in opposite directions, so the invariant fails loudly if the measure is ever
+swapped.
+
+### D-084 · Six months of data, three-month windows, and a five-percent band
+`computeFuelTrend` needs six measured months before it will state a direction. It compares
+the most recent three months against the three before, weighting each month by distance,
+and calls anything inside ±5% stable. **Why each number:** consecutive tanks in the same
+car routinely differ by more than 5%, so a narrower band would report noise as
+deterioration; three-month windows average out a single bad tank; six months is the minimum
+that gives two of them. Distance weighting matters more than it looks — a month containing
+one 20 km trip must not weigh as heavily as a month of commuting, and an unweighted mean of
+monthly figures turns that short trip into a false alarm. **Consequence:** a new user sees
+monthly bars from the second full tank but no verdict for six months, and the UI says which
+it is and why rather than showing an empty box.
+
+---
+
 ## 2026-09-22 — Document pen test and vehicle lifecycle
 
 ### D-083 · Leaving `ACTIVE` cancels the vehicle's open reminders

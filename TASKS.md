@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 42 | 0 | 0 | 0 | 9 | 41 |
-| **Total** | **142** | **87** | **3** | **1** | **0** | **9** | **42** |
+| 3–12 — Later phases | 92 | 45 | 0 | 0 | 0 | 9 | 38 |
+| **Total** | **142** | **90** | **3** | **1** | **0** | **9** | **39** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -111,9 +111,57 @@ All now use a `check()` that fails properly (DECISIONS.md D-079). The sweep afte
 surfaced two console errors, both of which turned out to be deliberately provoked — but
 that was luck, not design.
 
-**Next recommended task:** `HARD-003` (document pipeline penetration review), `VEH-003`
-(archival and soft delete — the last obvious gap in the vehicle lifecycle), or `RPT-003`
-(fuel economy trends), which is a small addition now that both fuel and reports exist.
+`HARD-003` is `DONE`. `scripts/pentest-documents.mjs` runs 21 adversarial requests against
+the running document pipeline in eight groups — cross-tenant object access, presigned-URL
+tampering, path traversal, content-type confusion, header injection via filenames,
+permission bypass, expiry and replay, and key enumeration. All 21 are refused. The one
+genuine finding, a non-ASCII filename placed raw into a latin-1 header, is fixed with
+RFC 6266 encoding and bidi-control stripping (D-081), pinned by 6 new storage tests. The
+script is committed so the same attacks re-run against every future change.
+
+`VEH-003` is `DONE`, closing the vehicle lifecycle. A vehicle can be marked `SOLD`,
+`SCRAPPED` or `ARCHIVED`, which removes it from the garage, the dashboard and cost reports
+while leaving it readable; leaving `ACTIVE` cancels its open reminders (D-083). Deletion
+is soft and reversible — `DELETE` sets `deleted_at`, `GET /vehicles/deleted` and
+`POST /vehicles/:id/restore` bring it back with services, fills, odometer history and
+inspections intact (D-082). 14 integration tests and a 10-step live verification script
+cover it.
+
+**Two defects were found by running the system, not by reading it.** Restoring a vehicle
+whose registration had been reused in the meantime returned a 500 from a button labelled
+Restore; it now returns `409 REGISTRATION_REUSED` and leaves the vehicle deleted.
+Separately, `pnpm dev:all` ran `node dist/main.js` with no watch and no compiler, so
+editing API source changed nothing until somebody remembered to rebuild — a stack that
+silently serves stale code, which cost this session a wrong diagnosis before it was
+noticed. The runner now pairs each compiled service with a `tsc --watch` and runs node
+under `--watch`.
+
+`RPT-003` is `DONE`. `GET /vehicles/:id/fuel/trend` returns monthly consumption and a
+direction, computed by a pure engine with 18 unit tests. The rules are the substance: six
+measured months before any direction, three-month windows weighted by distance, a ±5% band
+for noise, consumption rather than mpg as the measure, and a `SEASONAL_OVERLAP` caution
+under a year of history (D-084 to D-086). `FuelTrendCard` renders it and decides nothing.
+
+**The demo seed now carries a year of fills** with matching expense rows, so fuel tracking
+and the trend are visible without typing in receipts by hand — added as its own idempotent
+pass, because the vehicle pass skips vehicles that already exist (D-087).
+
+**The full 31-script sweep found three broken verification scripts**, none of which was a
+product fault. `verify-final.mjs` had gone stale in three places at once — the registration
+form gained a confirmation field and a terms checkbox, the overview's empty state was
+reworded, and the account menu became a dialog — so it had been failing for a while without
+anyone noticing. `verify-reports-ui.mjs` matched the demo workspace by name with
+`LIMIT 1`; every script registers a user whose first workspace is also called "My Garage",
+so it eventually picked an empty leftover. `verify-fuel-ui.mjs` asserted an empty fuel tab
+on a demo vehicle that now ships with a year of fills. All three are fixed, and two causes
+were removed rather than patched: `verify-final.mjs` now deletes the user it creates, and
+`verify-fuel-ui.mjs` creates a vehicle of its own instead of depending on demo data being
+sparse. Sweep now: 31/31.
+
+**Next recommended task:** `RPT-004` (workspace and fleet rollups), which reuses the cost
+engine across vehicles, or `HARD-004` (query performance and N+1 sweep) — the fill history
+now has ~110 seeded rows, which is the first dataset in this repository big enough for a
+query plan to be worth reading.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1218,7 +1266,7 @@ All are `BACKLOG` until their phase begins.
 | --- | --- | --- | --- | --- |
 | VEH-001 | Vehicle schema and migration | PARTIAL | CRITICAL | SEC-006 
 | VEH-002 | Vehicle CRUD with full attribute set | PARTIAL | CRITICAL | VEH-001, SEC-004 
-| VEH-003 | Status lifecycle, archival and soft delete | BACKLOG | HIGH | VEH-002 
+| VEH-003 | Status lifecycle, archival and soft delete | DONE | HIGH | VEH-002 
 | VEH-004 | Odometer entries with regression protection | PARTIAL | CRITICAL | VEH-002 
 | VEH-005 | Derived current mileage and staleness detection | PARTIAL | HIGH | VEH-004 
 | VEH-006 | Vehicle images via the document pipeline | BACKLOG | MEDIUM | VEH-002, DOC-101 
@@ -1311,7 +1359,7 @@ All are `BACKLOG` until their phase begins.
 | --- | --- | --- | --- | --- |
 | RPT-001 | Cost aggregation by category, vehicle and period | DONE | HIGH | OWN-008 
 | RPT-002 | Ownership cost and cost per distance | DONE | HIGH | RPT-001 
-| RPT-003 | Fuel economy trends | BACKLOG | MEDIUM | OWN-006 
+| RPT-003 | Fuel economy trends | DONE | MEDIUM | OWN-006 
 | RPT-004 | Workspace and fleet rollups | BACKLOG | MEDIUM | RPT-001 
 | RPT-005 | Report UI with date-range filtering | DONE | HIGH | RPT-001 
 | EXP-001 | Async export jobs (CSV, JSON) | BACKLOG | MEDIUM | RPT-001 
@@ -1335,7 +1383,7 @@ All are `BACKLOG` until their phase begins.
 | --- | --- | --- | --- | --- |
 | HARD-001 | Full security review against `SECURITY.md` | BACKLOG | CRITICAL | all 
 | HARD-002 | Authorisation and isolation audit | BACKLOG | CRITICAL | SEC-007 
-| HARD-003 | Document pipeline penetration review | BACKLOG | CRITICAL | DOC-104 
+| HARD-003 | Document pipeline penetration review | DONE | CRITICAL | DOC-104 
 | HARD-004 | Query performance and N+1 sweep | BACKLOG | HIGH | all 
 | HARD-005 | Index review against real query plans | BACKLOG | HIGH | HARD-004 
 | HARD-006 | Backup **restore** rehearsal | BACKLOG | CRITICAL | — 

@@ -50,6 +50,11 @@ const sql = (q) =>
   ).trim()
 const dlg = () => page.locator('dialog[open]')
 
+// Unique per run: re-running must not trip the duplicate-registration guard.
+const RUN = Date.now().toString().slice(-5)
+const MODEL = `Fuel ${RUN}`
+const REG = `FU${RUN.slice(0, 2)} ${RUN.slice(2)}`
+
 async function recordFill(odometer, quantity, { partial = false, amount = '' } = {}) {
   await page.getByRole('button', { name: 'Record a fill' }).click()
   await page.waitForSelector('dialog[open]', { timeout: 10000 })
@@ -66,11 +71,21 @@ try {
   await page.goto(D, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /Sign in as andrei/ }).click()
   await page.waitForSelector('text=Your vehicles', { timeout: 15000 })
-  await page
-    .getByRole('link', { name: /Ford Mondeo/ })
-    .first()
-    .click()
-  await page.waitForSelector('h1:has-text("Ford Mondeo")', { timeout: 15000 })
+
+  /**
+   * A vehicle of this script's own, rather than a seeded one. Steps [2] and [3] are about
+   * what an EMPTY fuel tab says, and the demo vehicles now ship with a year of fills
+   * (DECISIONS.md D-087) — a verification that depends on demo data being sparse breaks
+   * the moment the demo data improves, which is the wrong thing to be coupled to.
+   */
+  await page.getByRole('link', { name: 'Add vehicle' }).first().click()
+  await page.waitForSelector('text=Add a vehicle', { timeout: 15000 })
+  await page.fill('input[name="manufacturer"]', 'Probe')
+  await page.fill('input[name="model"]', MODEL)
+  await page.fill('input[name="registrationNumber"]', REG)
+  await page.click('button[type="submit"]')
+  await page.waitForSelector(`h1:has-text("Probe ${MODEL}")`, { timeout: 15000 })
+
   await page.getByRole('tab', { name: 'Fuel' }).click()
   await page.waitForSelector('text=Fill history', { timeout: 15000 })
   const placeholder = await page.getByText('is not built yet').count()
@@ -118,10 +133,14 @@ try {
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
   console.log(errs.length ? '\nFUEL UI HAS ERRORS\n' : '\nFUEL UI VERIFIED\n')
 } finally {
-  sql(`DELETE FROM expenses WHERE source_type='FUEL' AND source_record_id IN
-        (SELECT id FROM fuel_entries WHERE odometer BETWEEN 200000 AND 201000);`)
-  sql(`DELETE FROM odometer_entries WHERE source='FUEL' AND value BETWEEN 200000 AND 201000;`)
-  sql(`DELETE FROM fuel_entries WHERE odometer BETWEEN 200000 AND 201000;`)
-  sql(`DELETE FROM audit_logs WHERE resource_type='fuel_entry';`)
+  // Remove the probe vehicle outright: it is this script's scaffolding, not user history,
+  // and the app's own delete is deliberately a soft one (DECISIONS.md D-082).
+  const vq = `(SELECT id FROM vehicles WHERE registration_number='${REG}')`
+  sql(`DELETE FROM expenses WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM odometer_entries WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM fuel_entries WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM reminders WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM audit_logs WHERE resource_id IN ${vq};`)
+  sql(`DELETE FROM vehicles WHERE registration_number='${REG}';`)
   await browser.close()
 }

@@ -295,6 +295,18 @@ PUT    .../vehicles/:id/images/:imageId/primary
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
 
+**Fuel economy trends (RPT-003).** `GET /vehicles/:id/fuel/trend` returns
+`{ points, direction, changePercent, basis, cautions, unavailableReason, electric }`.
+`points` is one entry per calendar month, keyed `YYYY-MM`, holding that month's distance,
+quantity and consumption; an interval is attributed to the month its CLOSING fill falls in.
+`direction` is `IMPROVING`, `WORSENING` or `STABLE`, and is **null** until six measured
+months exist — `unavailableReason` then says which of `NO_INTERVALS`, `NOT_ENOUGH_MONTHS`
+or `MIXED_ENERGY` applies. `changePercent` is the change in consumption per distance
+(positive = using more), from the last three months against the three before, weighted by
+distance. `cautions` may carry `SEASONAL_OVERLAP` (under a year of history, so some of the
+change is the weather) or `SPARSE_DATA`. Clients render these; they never recompute them
+(DECISIONS.md D-084 to D-086).
+
 **Lifecycle.** `PATCH /vehicles/:id/status` takes `{ status, reason?, occurredOn? }` where
 `status` is one of `ACTIVE`, `SOLD`, `SCRAPPED` or `ARCHIVED`. Moving out of `ACTIVE`
 cancels the vehicle's open reminders ([D-083]); moving back to `ACTIVE` does not
@@ -380,7 +392,8 @@ GET    .../maintenance/due                       workspace-wide due/overdue
 .../vehicles/:id/tyres                GET POST      + /:id GET PATCH DELETE
 .../tyre-sets/:id/installations       GET POST      + /:id PATCH DELETE
 .../vehicles/:id/fuel                 GET POST      + /:id GET PATCH DELETE
-.../vehicles/:id/fuel/statistics      GET           economy, cost/distance, trend
+.../vehicles/:id/fuel/economy         GET           tank-to-tank consumption
+.../vehicles/:id/fuel/trend           GET           monthly consumption + direction
 .../expenses                          GET POST      workspace-wide, vehicle filter
 .../expenses/:id                      GET PATCH DELETE
 .../expense-categories                GET POST      + /:id PATCH DELETE

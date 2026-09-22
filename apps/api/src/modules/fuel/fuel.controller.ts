@@ -28,6 +28,12 @@ export class FuelController {
     return { data: await this.fuel.economy(ws.workspaceId, vehicleId) }
   }
 
+  @Get('vehicles/:vehicleId/fuel/trend')
+  @RequirePermission('vehicle:read')
+  async trend(@CurrentWorkspace() ws: WorkspaceContext, @Param('vehicleId') vehicleId: string) {
+    return { data: await this.fuel.trend(ws.workspaceId, vehicleId) }
+  }
+
   @Post('vehicles/:vehicleId/fuel')
   @RequirePermission('fuel:write')
   async create(

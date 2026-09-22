@@ -13,6 +13,42 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — Is your car getting worse?
+- **Consumption month by month**, with a plain sentence above it: using 9% more fuel than
+  three months ago, or steady, or improving — and which months were compared.
+- **It waits until it knows.** No direction is claimed until six months of fills exist, and
+  a change under 5% is called steady, because consecutive tanks vary by more than that in a
+  car that is perfectly healthy.
+- **It tells you when the weather might be the answer.** Under a year of history, a
+  comparison between a cold month and a warm one partly measures the season, and the page
+  says so instead of letting you worry about the car.
+- **Petrol, diesel and electric are all handled**, in litres or kilowatt-hours — but never
+  mixed into one misleading line.
+- The demo garage now comes with a year of fills, so this and the fuel tracking are visible
+  without typing in a year of receipts first.
+
+### Added — Selling, storing and removing a vehicle
+- **Mark a vehicle sold, scrapped or archived.** It leaves your garage and stops appearing
+  in your costs, but nothing about it is thrown away — open it any time to read its full
+  history, or switch it back.
+- **A sold car stops nagging you.** Reminders for its MOT, insurance and tax are cancelled
+  the moment it leaves your garage, rather than emailing you about a car you no longer own.
+- **Removing a vehicle is not permanent.** If you add one by mistake, remove it — it
+  disappears from your lists and your totals, and **Recently removed** will bring it back
+  whole, with every service, fill and mileage reading still attached. Nothing you do in the
+  app destroys a vehicle's history.
+- **Its plate is freed for reuse**, because the usual reason to remove a vehicle is that it
+  was entered wrongly. If you have since given that registration to another vehicle,
+  restoring the original explains the clash instead of failing silently.
+
+### Security
+- **Filenames with accents, Cyrillic or Greek characters now download correctly** instead
+  of arriving as unreadable characters, and filenames that use invisible text-direction
+  characters to disguise what a file is are stripped on the way out.
+- The document pipeline was attacked deliberately before being declared safe: 21
+  adversarial requests covering cross-tenant access, tampered and replayed download links,
+  path traversal, disguised content types and key guessing. All were refused.
+
 ### Added — What your vehicles actually cost
 - **A reports page** with totals by category, by vehicle and month by month, over any date
   range you choose, for one vehicle or all of them.
