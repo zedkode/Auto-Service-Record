@@ -3,6 +3,8 @@ import {
   DATE_FILTERED,
   EXPORT_FORMATS,
   EXPORT_KINDS,
+  REQUIRES_VEHICLE,
+  formatAllowed,
   type ExportFormat,
   type ExportKind,
 } from '@autoservices/export'
@@ -59,6 +61,23 @@ export class ExportsService {
     }
     if (input.from && input.to && input.from > input.to) {
       throw new DomainError('VALIDATION_FAILED', 'The start date is after the end date.', 422)
+    }
+    /**
+     * A vehicle history is a document, not a table: it is only produced as a PDF, and it
+     * has to say which vehicle. Refused here rather than queued, because a job accepted
+     * and then failed is worse than a request refused (EXP-002).
+     */
+    if (!formatAllowed(input.kind, input.format)) {
+      throw new DomainError(
+        'VALIDATION_FAILED',
+        input.format === 'PDF'
+          ? 'Only a vehicle history is produced as a PDF.'
+          : 'A vehicle history is only produced as a PDF.',
+        422,
+      )
+    }
+    if (REQUIRES_VEHICLE.has(input.kind) && !input.vehicleId) {
+      throw new DomainError('VALIDATION_FAILED', 'Choose which vehicle the history is for.', 422)
     }
 
     const db = this.prisma.forWorkspace(workspaceId)

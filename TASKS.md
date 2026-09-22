@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 50 | 0 | 0 | 0 | 9 | 33 |
-| **Total** | **142** | **95** | **3** | **1** | **0** | **9** | **34** |
+| 3–12 — Later phases | 92 | 51 | 0 | 0 | 0 | 9 | 32 |
+| **Total** | **142** | **96** | **3** | **1** | **0** | **9** | **33** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -282,8 +282,27 @@ which indexes real traffic reads, which are redundant, and which foreign keys ha
 **The HARD-004 claim above has been corrected.** Its "no sequential scans" result came from
 a detector that could not see scans inside subplans (D-104).
 
-**Next recommended task:** `EXP-002` (PDF vehicle history), which has the export pipeline
-underneath it, then `OWN-005` (tyre sets), the last unbuilt ownership record.
+`EXP-002` is `DONE`. `VEHICLE_HISTORY` is a new export kind on the EXP-001 pipeline, built
+by the worker with pdfkit — no headless browser. It carries the vehicle's identity, every
+service with its parts, every inspection including outstanding advisories, the full mileage
+log, warranties, a fuel summary and an index of attached documents.
+
+**The two decisions are about honesty and leakage,** not layout. The document is handed to
+a buyer at the point of sale, so it says on the first page and in every footer that it is
+an owner-entered record rather than a verified history, and it prints MOT advisories in
+full — a history that dropped them would be flattering the car, which is the seller's
+interest and not the buyer's (D-105). It lists documents by name and date and selects
+neither the storage key nor the original filename, because this is the one artefact
+deliberately given to a stranger (D-106).
+
+**Three real bugs were caught by reading the rendered PDF**, not the code: advisories were
+read from `description`/`resolvedAt` where the columns are `text`/`isResolved`, so every
+advisory would have printed the literal word "undefined"; documents were filtered on a
+status value that does not exist in the enum; and they were ordered by a column that does
+not exist. The verification extracts the text with poppler and asserts on what a person
+would actually see.
+
+**Next recommended task:** `OWN-005` (tyre sets), the last unbuilt ownership record.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1485,7 +1504,7 @@ All are `BACKLOG` until their phase begins.
 | RPT-004 | Workspace and fleet rollups | DONE | MEDIUM | RPT-001 
 | RPT-005 | Report UI with date-range filtering | DONE | HIGH | RPT-001 
 | EXP-001 | Async export jobs (CSV, JSON) | DONE | MEDIUM | RPT-001 
-| EXP-002 | PDF vehicle history export | BACKLOG | MEDIUM | EXP-001 
+| EXP-002 | PDF vehicle history export | DONE | MEDIUM | EXP-001 
 
 ### Phase 11 — Commercial foundation
 | ID | Title | Status | Priority | Depends on |

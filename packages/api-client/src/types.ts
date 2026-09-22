@@ -619,8 +619,14 @@ export interface Warranty {
 }
 
 /** EXP-001 — an asynchronous data export. */
-export type ExportKind = 'EXPENSES' | 'SERVICES' | 'FUEL' | 'ODOMETER' | 'VEHICLES'
-export type ExportFormat = 'CSV' | 'JSON'
+export type ExportKind =
+  | 'EXPENSES'
+  | 'SERVICES'
+  | 'FUEL'
+  | 'ODOMETER'
+  | 'VEHICLES'
+  | 'VEHICLE_HISTORY'
+export type ExportFormat = 'CSV' | 'JSON' | 'PDF'
 export type ExportStatus = 'PENDING' | 'RUNNING' | 'READY' | 'FAILED' | 'EXPIRED'
 
 export interface ExportJob {

@@ -315,6 +315,18 @@ Warranties feed the reminder engine as source type `WARRANTY`. Unlike the other 
 sources, each warranty is judged on its own rather than only the newest per vehicle, and an
 ended one stops being reported after 90 days or a 5,000-unit mileage overrun (D-101).
 
+**Vehicle history document (EXP-002).** `kind: 'VEHICLE_HISTORY'` produces one vehicle's
+complete history as a PDF, for handing to a buyer (PRODUCT.md §4.4). It is the only kind
+that is a document rather than a table, so it is refused unless `format` is `PDF` and a
+`vehicleId` is given, and the tabular kinds are refused as `PDF` — both with `422` at
+request time rather than as a job that fails after being accepted.
+
+The document contains the vehicle's identity, every service with its parts, every
+inspection **including outstanding advisories**, the full mileage log, warranties, a fuel
+summary, and an index of attached documents by name and date. The files themselves are
+never included and no storage key appears in it (DECISIONS.md D-106). Every page states
+that it is an owner-entered record rather than a verified history (D-105).
+
 **Data export (EXP-001).** `POST /workspaces/:ws/exports` takes
 `{ kind, format, from?, to?, vehicleId? }` and returns **202** with the job row — it does
 not wait for the file. `kind` is `EXPENSES`, `SERVICES`, `FUEL`, `ODOMETER` or `VEHICLES`;

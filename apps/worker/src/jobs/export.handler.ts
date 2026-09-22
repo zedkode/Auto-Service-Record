@@ -14,6 +14,7 @@ import { randomBytes } from 'node:crypto'
 import {
   CONTENT_TYPE,
   COLUMNS_FOR,
+  isDocumentKind,
   exportFilename,
   toCsvFile,
   toJsonFile,
@@ -22,6 +23,8 @@ import {
 } from '@autoservices/export'
 import type { Logger } from 'pino'
 import type { ObjectStorage } from '@autoservices/storage'
+import { buildVehicleHistoryPdf } from './vehicle-history.pdf.js'
+import { collectVehicleHistory } from './vehicle-history.data.js'
 
 export interface BuildExportJobData {
   exportJobId: string
@@ -115,14 +118,33 @@ export async function handleBuildExport(job: Job, ctx: ExportJobContext): Promis
 
   try {
     const params = (row.params ?? {}) as { from?: string; to?: string; vehicleId?: string }
-    const { rows, columns } = await collect(ctx.prisma, workspaceId, row.kind, params)
-
     const generatedOn = new Date().toISOString().slice(0, 10)
     const filename = exportFilename(row.kind, row.format, generatedOn)
-    const body =
-      row.format === 'CSV'
-        ? toCsvFile(rows as never[], columns as never)
-        : toJsonFile(rows as never[], columns as never)
+
+    /**
+     * A document kind has no column set: it is laid out, not tabulated. Keeping the two
+     * paths apart here is what lets the table path stay a pure transform of rows.
+     */
+    let body: string | Uint8Array
+    let rowCount: number
+    if (isDocumentKind(row.kind)) {
+      const history = await collectVehicleHistory(
+        ctx.prisma as never,
+        workspaceId,
+        params.vehicleId!,
+        generatedOn,
+      )
+      body = await buildVehicleHistoryPdf(history)
+      // The "rows" of a history document are the events it records.
+      rowCount = history.services.length + history.inspections.length + history.odometer.length
+    } else {
+      const { rows, columns } = await collect(ctx.prisma, workspaceId, row.kind, params)
+      body =
+        row.format === 'CSV'
+          ? toCsvFile(rows as never[], columns as never)
+          : toJsonFile(rows as never[], columns as never)
+      rowCount = rows.length
+    }
 
     // Reuse the key on a retry so a repeated run overwrites rather than orphaning a file.
     const key = row.objectKey ?? objectKeyFor(workspaceId, filename)
@@ -136,17 +158,17 @@ export async function handleBuildExport(job: Job, ctx: ExportJobContext): Promis
         objectKey: key,
         filename,
         byteSize: stored.byteSize,
-        rowCount: rows.length,
+        rowCount,
         completedAt: new Date(),
         expiresAt,
       },
     })
 
     ctx.logger.info(
-      { exportJobId: row.id, kind: row.kind, format: row.format, rows: rows.length },
+      { exportJobId: row.id, kind: row.kind, format: row.format, rows: rowCount },
       'export built',
     )
-    return { rows: rows.length, bytes: stored.byteSize }
+    return { rows: rowCount, bytes: stored.byteSize }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     ctx.logger.error({ exportJobId: row.id, err: message }, 'export failed')
@@ -166,7 +188,7 @@ export async function handleBuildExport(job: Job, ctx: ExportJobContext): Promis
 async function collect(
   prisma: ExportPrisma,
   workspaceId: string,
-  kind: ExportKind,
+  kind: Exclude<ExportKind, 'VEHICLE_HISTORY'>,
   params: { from?: string; to?: string; vehicleId?: string },
 ) {
   const columns = COLUMNS_FOR[kind]

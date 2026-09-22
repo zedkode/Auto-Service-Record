@@ -7,10 +7,22 @@
  */
 import type { Column } from './csv.js'
 
-export const EXPORT_KINDS = ['EXPENSES', 'SERVICES', 'FUEL', 'ODOMETER', 'VEHICLES'] as const
+export const EXPORT_KINDS = [
+  'EXPENSES',
+  'SERVICES',
+  'FUEL',
+  'ODOMETER',
+  'VEHICLES',
+  /**
+   * EXP-002 — one vehicle's complete history as a document, for handing to a buyer
+   * (PRODUCT.md §4.4). Unlike the others it is not a table of records, so it has no column
+   * set and is only produced as a PDF.
+   */
+  'VEHICLE_HISTORY',
+] as const
 export type ExportKind = (typeof EXPORT_KINDS)[number]
 
-export const EXPORT_FORMATS = ['CSV', 'JSON'] as const
+export const EXPORT_FORMATS = ['CSV', 'JSON', 'PDF'] as const
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]
 
 /** Kinds whose rows are filtered by a date range; the rest export everything. */
@@ -170,7 +182,31 @@ export const VEHICLE_COLUMNS: ReadonlyArray<Column<VehicleRow>> = [
   { header: 'Currency', value: (r) => r.currency },
 ]
 
-export const COLUMNS_FOR: Record<ExportKind, ReadonlyArray<Column<never>>> = {
+/**
+ * Which kinds are tables of records. `VEHICLE_HISTORY` is a document: it has no columns,
+ * must name a vehicle, and only exists as a PDF — so the three rules live together here
+ * rather than being rediscovered in the API and again in the worker.
+ */
+export const IS_DOCUMENT: ReadonlySet<ExportKind> = new Set<ExportKind>(['VEHICLE_HISTORY'])
+export const REQUIRES_VEHICLE: ReadonlySet<ExportKind> = new Set<ExportKind>(['VEHICLE_HISTORY'])
+
+/**
+ * A type guard rather than a bare `IS_DOCUMENT.has(...)`, so the compiler narrows the kind
+ * in the branch — which is what stops the tabular path from being handed a kind that has
+ * no column set.
+ */
+export function isDocumentKind(kind: ExportKind): kind is 'VEHICLE_HISTORY' {
+  return IS_DOCUMENT.has(kind)
+}
+
+export function formatAllowed(kind: ExportKind, format: ExportFormat): boolean {
+  return IS_DOCUMENT.has(kind) ? format === 'PDF' : format !== 'PDF'
+}
+
+export const COLUMNS_FOR: Record<
+  Exclude<ExportKind, 'VEHICLE_HISTORY'>,
+  ReadonlyArray<Column<never>>
+> = {
   EXPENSES: EXPENSE_COLUMNS as ReadonlyArray<Column<never>>,
   SERVICES: SERVICE_COLUMNS as ReadonlyArray<Column<never>>,
   FUEL: FUEL_COLUMNS as ReadonlyArray<Column<never>>,
@@ -184,6 +220,7 @@ const LABEL: Record<ExportKind, string> = {
   FUEL: 'fuel',
   ODOMETER: 'mileage',
   VEHICLES: 'vehicles',
+  VEHICLE_HISTORY: 'vehicle-history',
 }
 
 /**
@@ -197,4 +234,5 @@ export function exportFilename(kind: ExportKind, format: ExportFormat, generated
 export const CONTENT_TYPE: Record<ExportFormat, string> = {
   CSV: 'text/csv; charset=utf-8',
   JSON: 'application/json; charset=utf-8',
+  PDF: 'application/pdf',
 }

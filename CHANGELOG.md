@@ -13,6 +13,17 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — A history document to hand a buyer
+- **Export one vehicle's complete history as a PDF**: every service and the parts fitted,
+  every MOT, the full mileage log, warranties and a list of the paperwork you hold.
+- **It is honest about what it is.** The document states on every page that it is your own
+  record rather than a verified history, because a buyer deserves to know that and a
+  document that looks like a certificate will be read as one.
+- **MOT advisories are shown, including ones still outstanding.** A pass with advisories is
+  not a clean pass, and leaving them out would be flattering the car.
+- **Your receipts stay yours.** The document lists what paperwork exists so a buyer knows
+  what to ask for; the files themselves are never attached and no link to them appears.
+
 ### Added — Warranties that know about mileage
 - **Record a warranty with its date and its mileage limit**, and see which one will run out
   first. "Three years or 60,000 miles" is one promise with two clocks, and on a car doing

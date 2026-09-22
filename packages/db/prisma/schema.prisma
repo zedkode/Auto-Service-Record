@@ -278,11 +278,15 @@ enum ExportKind {
   FUEL
   ODOMETER
   VEHICLES
+  /// EXP-002 — one vehicle's history as a document rather than a table of records.
+  VEHICLE_HISTORY
 }
 
 enum ExportFormat {
   CSV
   JSON
+  /// Only valid with VEHICLE_HISTORY; the tabular kinds are never rendered as a document.
+  PDF
 }
 
 enum ExportStatus {

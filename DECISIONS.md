@@ -12,6 +12,32 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Vehicle history document
+
+### D-106 · The history document lists what documents exist, never the documents
+The PDF names each attached receipt and certificate with its date and type, and selects
+neither `storageKey` nor `originalFilename`. **Why:** the point of the section is to let a
+buyer say "can I see the cambelt receipt?" — that needs a list, not the files. And this is
+the one artefact in the product deliberately handed to a stranger, so anything in it is
+effectively public. A storage key in it would turn the whole signed-URL design (HARD-003)
+into decoration. **Consequence:** the verification asserts the negative — that no storage
+key and no signing parameter appears anywhere in the rendered text — because the way this
+would break is by someone adding a helpful "download" column.
+
+### D-105 · The document says what it is, on every page
+The first page carries a paragraph headed "What this document is", and every page footer
+repeats "owner-entered record, not a verified history". **Why:** this PDF exists to be
+handed to a buyer at the point of sale, and a document laid out like a certificate will be
+read as one. Nothing in it has been checked against a manufacturer, a workshop or a
+national register — it is the owner's own account. The footer repeats it because a document
+is read a page at a time, and page four on its own must not read as a certified record.
+**Related, and the reason this is a decision rather than copy:** MOT advisories are printed
+in full, including outstanding ones. A "pass with advisories" is not a clean pass, and a
+history that quietly dropped them would be flattering the car — which is precisely the
+interest the seller has and the buyer does not.
+
+---
+
 ## 2026-09-22 — Index review
 
 ### D-104 · A plan detector that can miss what it looks for is worse than none

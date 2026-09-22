@@ -34,7 +34,11 @@ const KINDS: Array<{ value: ExportKind; label: string }> = [
   { value: 'FUEL', label: 'Fuel and charging' },
   { value: 'ODOMETER', label: 'Mileage readings' },
   { value: 'VEHICLES', label: 'Vehicles' },
+  { value: 'VEHICLE_HISTORY', label: 'Vehicle history document (PDF)' },
 ]
+
+/** A document kind names one vehicle and is only ever a PDF (EXP-002). */
+const isDocument = (kind: ExportKind) => kind === 'VEHICLE_HISTORY'
 
 /** Colour through `className`, which is the API `Badge` actually has. */
 const STATUS_CLASS: Record<ExportJob['status'], string> = {
@@ -66,7 +70,15 @@ export function ExportPanel({ from, to }: { from: string; to: string }) {
   const mayExport = can(workspace.role, 'export:create')
   const [kind, setKind] = useState<ExportKind>('EXPENSES')
   const [format, setFormat] = useState<ExportFormat>('CSV')
+  const [vehicleId, setVehicleId] = useState('')
   const [failure, setFailure] = useState<string | null>(null)
+
+  const vehicles = useQuery({
+    queryKey: ['vehicles', workspace.id],
+    queryFn: () => api.vehicles.list(workspace.id),
+    // Only needed for the history document, which is the only kind that names a vehicle.
+    enabled: isDocument(kind),
+  })
 
   const jobs = useQuery({
     queryKey: ['exports', workspace.id],
@@ -79,7 +91,15 @@ export function ExportPanel({ from, to }: { from: string; to: string }) {
   })
 
   const request = useMutation({
-    mutationFn: () => api.exports.create(workspace.id, { kind, format, from, to }),
+    mutationFn: () =>
+      api.exports.create(
+        workspace.id,
+        isDocument(kind)
+          ? // A history document covers the vehicle's whole life, so the page's date range
+            // does not apply to it.
+            { kind, format: 'PDF', vehicleId }
+          : { kind, format, from, to },
+      ),
     onSuccess: () => {
       setFailure(null)
       void queryClient.invalidateQueries({ queryKey: ['exports', workspace.id] })
@@ -106,7 +126,11 @@ export function ExportPanel({ from, to }: { from: string; to: string }) {
     <Card className="mt-6">
       <CardHeader
         title="Export your data"
-        description="Prepared in the background. Download links last two minutes and the file itself is kept for a day."
+        description={
+          isDocument(kind)
+            ? 'A complete history for one vehicle, to hand to a buyer. It states plainly that it is your own record rather than a verified history.'
+            : 'Prepared in the background. Download links last two minutes and the file itself is kept for a day.'
+        }
       />
       <CardBody className="pt-0">
         {mayExport ? (
@@ -123,16 +147,36 @@ export function ExportPanel({ from, to }: { from: string; to: string }) {
                 </option>
               ))}
             </SelectField>
-            <SelectField
-              name="exportFormat"
-              label="Format"
-              value={format}
-              onChange={(e) => setFormat(e.target.value as ExportFormat)}
+            {isDocument(kind) ? (
+              <SelectField
+                name="exportVehicle"
+                label="Vehicle"
+                value={vehicleId}
+                onChange={(e) => setVehicleId(e.target.value)}
+              >
+                <option value="">Choose a vehicle…</option>
+                {(vehicles.data ?? []).map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.manufacturer} {v.model}
+                    {v.registrationNumber ? ` · ${v.registrationNumber}` : ''}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <SelectField
+                name="exportFormat"
+                label="Format"
+                value={format}
+                onChange={(e) => setFormat(e.target.value as ExportFormat)}
+              >
+                <option value="CSV">CSV (spreadsheet)</option>
+                <option value="JSON">JSON</option>
+              </SelectField>
+            )}
+            <Button
+              onClick={() => request.mutate()}
+              disabled={request.isPending || (isDocument(kind) && !vehicleId)}
             >
-              <option value="CSV">CSV (spreadsheet)</option>
-              <option value="JSON">JSON</option>
-            </SelectField>
-            <Button onClick={() => request.mutate()} disabled={request.isPending}>
               {request.isPending ? 'Requesting…' : 'Request export'}
             </Button>
           </div>
