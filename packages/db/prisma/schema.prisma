@@ -262,6 +262,34 @@ enum ExpenseSourceType {
 
 /// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
 /// country's inspection regime is a new enum member, not a new table.
+enum TyreSeason {
+  SUMMER
+  WINTER
+  ALL_SEASON
+}
+
+enum TyreSetStatus {
+  /// Fitted to the vehicle right now.
+  IN_USE
+  /// Owned but off the car — the other half of a seasonal pair.
+  STORED
+  /// Worn out or damaged; kept for the history, never fitted again.
+  RETIRED
+}
+
+/// Where a set was fitted. A set is usually fitted all round, but a pair on one axle is
+/// common enough that recording it as "all round" would be a lie about the vehicle.
+enum TyrePosition {
+  ALL_ROUND
+  FRONT_AXLE
+  REAR_AXLE
+  FRONT_LEFT
+  FRONT_RIGHT
+  REAR_LEFT
+  REAR_RIGHT
+  SPARE
+}
+
 enum WarrantyType {
   MANUFACTURER
   DEALER
@@ -406,6 +434,8 @@ model User {
 
   requestedExports ExportJob[]
   createdWarranties Warranty[]
+  createdTyreSets TyreSet[]
+  createdTyreInstallations TyreInstallation[]
   @@index([status])
   @@map("users")
 }
@@ -632,6 +662,8 @@ model Vehicle {
   // Composite key that tenant-owned children reference. This is what lets PostgreSQL
   // reject a child row whose workspace disagrees with its parent's.
   warranties Warranty[]
+  tyreSets TyreSet[]
+  tyreInstallations TyreInstallation[]
   @@unique([id, workspaceId], map: "vehicles_id_workspace_uk")
   @@index([workspaceId])
   @@index([workspaceId, status])
@@ -1219,6 +1251,7 @@ model ServiceRecord {
   resolvedAdvisories InspectionAdvisory[]
 
   warranties Warranty[]
+  tyreInstallations TyreInstallation[]
   @@index([categoryId], map: "service_records_category_id_fk_idx")
   @@index([createdByUserId], map: "service_records_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "service_records_id_workspace_uk")
@@ -1656,4 +1689,91 @@ model Warranty {
   @@index([workspaceId, vehicleId, expiresOn(sort: Desc)])
   @@index([expiresOn], map: "warranties_expires_on_idx")
   @@map("warranties")
+}
+
+/// OWN-005 — a set of tyres, which outlives any single time it is fitted.
+///
+/// Modelled apart from the fitting because a seasonal pair goes on and comes off every
+/// year: the set is the thing you own and the thing that wears out, and the installations
+/// are the periods it spent on the car (DECISIONS.md D-107).
+model TyreSet {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  name         String
+  manufacturer String?
+  model        String?
+  /// As written on the sidewall, e.g. "225/45 R17". Free text: the formats vary by market
+  /// and refusing an unfamiliar one would be worse than storing what the user reads.
+  size         String?
+  season       TyreSeason
+  loadIndex    String? @map("load_index")
+  speedRating  String? @map("speed_rating")
+
+  purchasedOn   DateTime? @map("purchased_on") @db.Date
+  purchasePrice Decimal?  @map("purchase_price") @db.Decimal(14, 2)
+  currency      String    @default("GBP") @db.Char(3)
+
+  status TyreSetStatus @default(STORED)
+  notes  String?
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle            @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  installations TyreInstallation[]
+
+  @@unique([id, workspaceId], map: "tyre_sets_id_workspace_uk")
+  @@index([workspaceId, vehicleId, status])
+  @@index([createdByUserId], map: "tyre_sets_created_by_user_id_fk_idx")
+  @@map("tyre_sets")
+}
+
+/// A period a tyre set spent on the vehicle.
+///
+/// `removedOn` null means it is on the car now. The odometer at each end is what makes the
+/// distance a set has covered a measurement rather than a guess.
+model TyreInstallation {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  tyreSetId   String @map("tyre_set_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  position TyrePosition @default(ALL_ROUND)
+
+  installedOn       DateTime     @map("installed_on") @db.Date
+  installedOdometer Int?         @map("installed_odometer")
+  removedOn         DateTime?    @map("removed_on") @db.Date
+  removedOdometer   Int?         @map("removed_odometer")
+  odometerUnit      DistanceUnit @map("odometer_unit")
+
+  /// Millimetres, to one decimal. Measured, never estimated from mileage: wear rates vary
+  /// far too much between cars, roads and driving styles for a prediction to be honest.
+  treadDepthMm    Decimal?  @map("tread_depth_mm") @db.Decimal(4, 1)
+  treadMeasuredOn DateTime? @map("tread_measured_on") @db.Date
+
+  serviceRecordId String? @map("service_record_id") @db.Uuid
+  notes           String?
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tyreSet       TyreSet        @relation(fields: [tyreSetId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  vehicle       Vehicle        @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  serviceRecord ServiceRecord? @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "tyre_installations_id_workspace_uk")
+  @@index([workspaceId, vehicleId, installedOn(sort: Desc)])
+  @@index([workspaceId, tyreSetId])
+  @@index([serviceRecordId], map: "tyre_installations_service_record_id_fk_idx")
+  @@index([createdByUserId], map: "tyre_installations_created_by_user_id_fk_idx")
+  @@map("tyre_installations")
 }

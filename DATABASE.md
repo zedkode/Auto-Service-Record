@@ -315,7 +315,16 @@ warranties
 
 `inspection_type`: `MOT | ITP | TUV | CT | STATE_INSPECTION | EMISSIONS | OTHER`.
 `result`: `PASS | PASS_WITH_ADVISORIES | FAIL | UNKNOWN`.
-`warranty_type`: `MANUFACTURER | DEALER | THIRD_PARTY | PART | REPAIR`. `start_odometer` was
+`warranty_type`: `MANUFACTURER | DEALER | THIRD_PARTY | PART | REPAIR`.
+`tyre_season`: `SUMMER | WINTER | ALL_SEASON`. `tyre_set_status`: `IN_USE | STORED |
+RETIRED`. `tyre_position`: `ALL_ROUND | FRONT_AXLE | REAR_AXLE | FRONT_LEFT | FRONT_RIGHT |
+REAR_LEFT | REAR_RIGHT | SPARE`.
+
+`tread_measured_on` was added during OWN-005: a depth with no date cannot be judged stale,
+and a two-year-old reading shown beside a legal limit is worse than none. `removed_on` NULL
+means the set is fitted now, and at most one such row may exist per vehicle — enforced in
+the service rather than by a constraint, because fitting a set legitimately closes the
+previous row in the same transaction (DECISIONS.md D-107/D-108). `start_odometer` was
 added during OWN-004: without it `distance_limit` is ambiguous, meaning an absolute
 odometer reading on a vehicle warranty but an allowance from the fitting reading on a part
 or repair. There is deliberately **no** stored status column — a warranty's state depends
@@ -337,7 +346,8 @@ tyre_installations
   id, workspace_id, tyre_set_id, vehicle_id, position,
   installed_on (date), installed_odometer, removed_on (date),
   removed_odometer, odometer_unit, tread_depth_mm numeric(4,1),
-  service_record_id, notes, timestamps
+  tread_measured_on (date), service_record_id, notes,
+  created_by_user_id, timestamps
 
 fuel_entries
   id, workspace_id, vehicle_id, filled_on (date), odometer, odometer_unit,

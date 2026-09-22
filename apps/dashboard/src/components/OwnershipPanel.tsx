@@ -19,6 +19,7 @@ import {
   type TrackingStatus,
 } from '@autoservices/ui'
 import { ApiError, type ExpiryStatus } from '@autoservices/api-client'
+import { TyrePanel } from './TyrePanel.js'
 import { WarrantyPanel } from './WarrantyPanel.js'
 import { api } from '../lib/api.js'
 import { useSession } from '../lib/use-session.js'
@@ -179,6 +180,8 @@ export function OwnershipPanel({ vehicleId }: { vehicleId: string }) {
       />
 
       <WarrantyPanel vehicleId={vehicleId} />
+
+      <TyrePanel vehicleId={vehicleId} />
 
       <AddInspectionDialog
         open={dialog === 'inspection'}

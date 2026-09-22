@@ -9,6 +9,7 @@ import type {
   DownloadLink,
   DueMaintenanceItem,
   FuelEconomy,
+  TyreSet,
   Warranty,
   ExportDownload,
   ExportFormat,
@@ -323,6 +324,25 @@ export function createApi(client: ApiClient) {
       update: (ws: string, id: string, input: Record<string, unknown>) =>
         client.patch<FuelEntry>(`/workspaces/${ws}/fuel/${id}`, input),
       remove: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/fuel/${id}`),
+    },
+
+    tyres: {
+      list: (ws: string, vehicleId?: string) =>
+        client.get<TyreSet[]>(
+          `/workspaces/${ws}/tyre-sets${vehicleId ? `?vehicleId=${vehicleId}` : ''}`,
+        ),
+      create: (ws: string, vehicleId: string, input: Record<string, unknown>) =>
+        client.post<TyreSet>(`/workspaces/${ws}/vehicles/${vehicleId}/tyre-sets`, input),
+      update: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.patch<TyreSet>(`/workspaces/${ws}/tyre-sets/${id}`, input),
+      // Fitting a set takes off whatever was on: a car wears one set at a time.
+      fit: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.post<TyreSet>(`/workspaces/${ws}/tyre-sets/${id}/fit`, input),
+      removeFromVehicle: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.post<TyreSet>(`/workspaces/${ws}/tyre-sets/${id}/remove`, input),
+      measureTread: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.post<TyreSet>(`/workspaces/${ws}/tyre-sets/${id}/tread`, input),
+      destroy: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/tyre-sets/${id}`),
     },
 
     warranties: {

@@ -12,6 +12,46 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Tyre sets
+
+### D-109 · Tread is measured, never estimated from mileage
+`treadStatus` reports the most recent measurement and nothing else. There is deliberately
+no prediction from distance covered. **Why:** wear depends on the car, the roads, the
+pressures, the alignment and the driver far more than on miles, so any predicted depth
+would be invented. And it would be invented about the one fact in this feature that carries
+a fine, penalty points per tyre and an inspection failure — a number people would act on
+that nobody measured. **Consequence:** a set with no measurement reads `UNKNOWN` rather
+than a plausible figure, the reminder source fires only on real readings, and a reading
+older than 180 days is flagged stale rather than treated as current. The legal minimum
+(1.6 mm) and the advisory depth (3.0 mm, where wet braking degrades sharply) are named
+constants, because a threshold below which a car is illegal to drive should never be an
+inline comparison.
+
+### D-108 · Fitting a set takes the other one off
+`fit()` closes the open installation on that vehicle, at the same date and odometer, rather
+than refusing while another set is on. **Why not refuse:** the user is recording a seasonal
+swap that has already happened to their car. Making them perform it as two steps invites
+them to do the first and forget the second, which leaves two sets recorded as fitted — the
+exact state the rule exists to prevent, arrived at by being strict. The physical fact is
+that a car wears one set at a time, so the data model should make the other outcome
+impossible rather than merely discouraged. **Consequence:** the removal is recorded at the
+new set's reading, which is right — the car was in one place when the wheels were swapped.
+The UI says which set will come off before the user confirms, so the automatic part is
+never a surprise. A verification asserts that exactly one installation is ever open.
+
+### D-107 · The set and the fitting are separate things
+`TyreSet` holds what you own; `TyreInstallation` holds a period it spent on the car.
+**Why:** a seasonal pair goes on in November and comes off in April, every year. What wears
+out is the set, across all of those periods, so the distance that matters is summed across
+installations — 4,000 miles one winter plus 5,500 the next is a set with 9,500 miles on it,
+not two unrelated events. Recording only "tyres fitted on this date" would make that number
+unobtainable. **Consequence:** the open period is measured against the vehicle's CURRENT
+reading, so a fitted set's distance keeps up with the car instead of freezing at the moment
+it went on; and periods that cannot be measured are counted and reported, because a total
+from three of five fittings is not the total.
+
+---
+
 ## 2026-09-22 — Vehicle history document
 
 ### D-106 · The history document lists what documents exist, never the documents

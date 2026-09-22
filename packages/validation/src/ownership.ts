@@ -226,3 +226,79 @@ export const updateWarrantySchema = z
   .superRefine(expiryAfter('startsOn'))
   .superRefine(distancePairs)
 export type UpdateWarrantyInput = z.infer<typeof updateWarrantySchema>
+
+export const tyreSeason = z.enum(['SUMMER', 'WINTER', 'ALL_SEASON'])
+export const tyreSetStatus = z.enum(['IN_USE', 'STORED', 'RETIRED'])
+export const tyrePosition = z.enum([
+  'ALL_ROUND',
+  'FRONT_AXLE',
+  'REAR_AXLE',
+  'FRONT_LEFT',
+  'FRONT_RIGHT',
+  'REAR_LEFT',
+  'REAR_RIGHT',
+  'SPARE',
+])
+
+/** Millimetres to one decimal. A new tyre is about 8 mm; nothing sane exceeds 20. */
+const treadDepth = z.number().min(0).max(20)
+
+export const createTyreSetSchema = z.object({
+  name: shortText,
+  manufacturer: shortText.optional(),
+  model: shortText.optional(),
+  size: shortText.optional(),
+  season: tyreSeason,
+  loadIndex: shortText.optional(),
+  speedRating: shortText.optional(),
+  purchasedOn: calendarDate.optional(),
+  purchasePrice: moneyAmount.optional(),
+  currency: currencyCode.default('GBP'),
+  notes: longText.optional(),
+})
+export type CreateTyreSetInput = z.infer<typeof createTyreSetSchema>
+
+export const updateTyreSetSchema = z.object({
+  name: shortText.optional(),
+  manufacturer: shortText.optional(),
+  model: shortText.optional(),
+  size: shortText.optional(),
+  season: tyreSeason.optional(),
+  loadIndex: shortText.optional(),
+  speedRating: shortText.optional(),
+  purchasedOn: calendarDate.optional(),
+  purchasePrice: moneyAmount.optional(),
+  currency: currencyCode.optional(),
+  status: tyreSetStatus.optional(),
+  notes: longText.optional(),
+})
+export type UpdateTyreSetInput = z.infer<typeof updateTyreSetSchema>
+
+/**
+ * Fitting a set. The odometer is optional but strongly wanted: without it the distance the
+ * set covers cannot be measured, which is most of why the record is worth keeping.
+ */
+export const fitTyreSetSchema = z.object({
+  position: tyrePosition.default('ALL_ROUND'),
+  installedOn: calendarDate,
+  installedOdometer: odometerValue.optional(),
+  odometerUnit: distanceUnit,
+  treadDepthMm: treadDepth.optional(),
+  notes: longText.optional(),
+})
+export type FitTyreSetInput = z.infer<typeof fitTyreSetSchema>
+
+export const removeTyreSetSchema = z.object({
+  removedOn: calendarDate,
+  removedOdometer: odometerValue.optional(),
+  treadDepthMm: treadDepth.optional(),
+  notes: longText.optional(),
+})
+export type RemoveTyreSetInput = z.infer<typeof removeTyreSetSchema>
+
+/** Recording a tread measurement on the set currently fitted. */
+export const measureTreadSchema = z.object({
+  treadDepthMm: treadDepth,
+  measuredOn: calendarDate,
+})
+export type MeasureTreadInput = z.infer<typeof measureTreadSchema>

@@ -10,6 +10,7 @@ import {
   RoadTaxReminderSource,
 } from './sources/expiry.sources.js'
 import { WarrantyReminderSource } from './sources/warranty.source.js'
+import { TyreReminderSource } from './sources/tyre.source.js'
 import {
   NotificationsController,
   NotificationPreferencesController,
@@ -33,6 +34,7 @@ import { AuditService } from '../../common/audit/audit.service.js'
     InsuranceReminderSource,
     RoadTaxReminderSource,
     WarrantyReminderSource,
+    TyreReminderSource,
     AuditService,
   ],
   exports: [RemindersService, NotificationsService],

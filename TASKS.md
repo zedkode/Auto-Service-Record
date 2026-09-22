@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 51 | 0 | 0 | 0 | 9 | 32 |
-| **Total** | **142** | **96** | **3** | **1** | **0** | **9** | **33** |
+| 3–12 — Later phases | 92 | 52 | 0 | 0 | 0 | 9 | 31 |
+| **Total** | **142** | **97** | **3** | **1** | **0** | **9** | **32** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -302,7 +302,26 @@ status value that does not exist in the enum; and they were ordered by a column 
 not exist. The verification extracts the text with poppler and asserts on what a person
 would actually see.
 
-**Next recommended task:** `OWN-005` (tyre sets), the last unbuilt ownership record.
+`OWN-005` is `DONE`, which completes the ownership records. A set is what you own and an
+installation is a period it spent on the car, kept apart because a seasonal pair goes on
+and off every year and what wears out is the set across all of them (D-107). Distance is
+summed across every fitting with the open one measured against the vehicle's current
+mileage, so it keeps up with the car; tread comes only from measurements and is never
+predicted from distance, because that is the one number here carrying a fine and an
+inspection failure (D-109). Fitting a set takes the other one off rather than refusing,
+because the alternative invites a half-finished swap and two sets recorded as fitted
+(D-108). 20 engine tests, a 12-step live verification, and a `TYRE` reminder source that
+fires only on measured depths.
+
+**Both new models were caught by the isolation suite automatically** — the eighth and ninth
+time that mechanism has paid for itself.
+
+**Next recommended task:** the ownership and reporting phases are now complete. The largest
+remaining gaps are the `PARTIAL` early-delivery tasks (`VEH-001`, `VEH-002`, `VEH-004`,
+`VEH-005`, `OWN-008`), whose full acceptance criteria were never finished, and Phase 11
+(`PLAN-001` onwards), which is the commercial foundation and currently untouched.
+`CORE-021` (production Dockerfiles) and `CORE-020` (a green CI run) are the two Phase 1
+items still open.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1454,7 +1473,7 @@ All are `BACKLOG` until their phase begins.
 | OWN-002 | Insurance policies | DONE | HIGH | VEH-002, REM-002 
 | OWN-003 | Road tax and registration | DONE | HIGH | VEH-002, REM-002 
 | OWN-004 | Warranties, including part and repair warranties | DONE | MEDIUM | VEH-002, REM-002 
-| OWN-005 | Tyre sets and installations | BACKLOG | MEDIUM | VEH-002 
+| OWN-005 | Tyre sets and installations | DONE | MEDIUM | VEH-002 
 | OWN-006 | Fuel entries and consumption calculation | DONE | HIGH | VEH-004 
 | OWN-007 | Expenses and category management | DONE | HIGH | VEH-002 
 | OWN-008 | Expense projection from services, fuel, insurance and tax | DONE | HIGH | OWN-007, SRV-003 

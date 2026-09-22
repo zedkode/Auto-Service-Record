@@ -586,6 +586,67 @@ export interface FuelEconomy {
   fillCount: number
 }
 
+/** OWN-005 — a set of tyres, and the periods it has spent on the vehicle. */
+export type TyreSeason = 'SUMMER' | 'WINTER' | 'ALL_SEASON'
+export type TyreSetStatus = 'IN_USE' | 'STORED' | 'RETIRED'
+export type TyrePosition =
+  | 'ALL_ROUND'
+  | 'FRONT_AXLE'
+  | 'REAR_AXLE'
+  | 'FRONT_LEFT'
+  | 'FRONT_RIGHT'
+  | 'REAR_LEFT'
+  | 'REAR_RIGHT'
+  | 'SPARE'
+
+export interface TyreInstallation {
+  id: string
+  position: TyrePosition
+  installedOn: string | null
+  installedOdometer: number | null
+  removedOn: string | null
+  removedOdometer: number | null
+  odometerUnit: 'MILES' | 'KILOMETERS'
+  treadDepthMm: number | null
+  treadMeasuredOn: string | null
+  notes: string | null
+}
+
+export interface TyreSet {
+  id: string
+  vehicleId: string
+  name: string
+  manufacturer: string | null
+  model: string | null
+  size: string | null
+  season: TyreSeason
+  loadIndex: string | null
+  speedRating: string | null
+  purchasedOn: string | null
+  purchasePrice: string | null
+  currency: string
+  status: TyreSetStatus
+  notes: string | null
+  fitted: boolean
+  /** Summed across every period the set has been fitted; computed on every read. */
+  distance: {
+    metres: number | null
+    miles: number | null
+    kilometres: number | null
+    measuredPeriods: number
+    unmeasuredPeriods: number
+    unavailableReason: 'NO_INSTALL_READING' | 'NO_CURRENT_READING' | 'NEVER_FITTED' | null
+  }
+  /** From the most recent measurement. Never estimated from mileage. */
+  tread: {
+    state: 'GOOD' | 'MONITOR' | 'REPLACE_SOON' | 'ILLEGAL' | 'UNKNOWN'
+    depthMm: number | null
+    measuredOn: string | null
+    stale: boolean
+  }
+  installations: TyreInstallation[]
+}
+
 /** OWN-004 — a warranty, which ends on a date or a mileage, whichever comes first. */
 export type WarrantyType = 'MANUFACTURER' | 'DEALER' | 'THIRD_PARTY' | 'PART' | 'REPAIR'
 

@@ -288,6 +288,9 @@ describe('LAYER 2: the Prisma tenant extension scopes every operation', () => {
         // Workspace-scoped, but reached only through the ADMIN realm behind a support
         // access grant — never through a customer request (SEC-018).
         'SupportAccessGrant',
+        // OWN-005. A set and the periods it spent on a car are both tenant-owned.
+        'TyreInstallation',
+        'TyreSet',
         'Vehicle',
         'VehicleImage',
         'VehicleInspection',

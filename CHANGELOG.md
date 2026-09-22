@@ -13,6 +13,17 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — Tyres, and how far each set has really gone
+- **Keep a summer set and a winter set**, and see how many miles each has covered — added
+  up across every year it goes back on, not just since the last time it was fitted.
+- **Fitting one takes the other off**, because a car wears one set at a time. The page
+  tells you which set is coming off before you confirm.
+- **Record the tread depth** and see where it stands against the 1.6 mm legal minimum, with
+  replacement advised below 3 mm where wet braking falls away.
+- **You are told when the tyres on the car are illegal**, by a reminder.
+- **Nothing is guessed.** Tread wear varies far too much between cars and roads to predict
+  from mileage, so a set with no measurement says so rather than showing a made-up figure.
+
 ### Added — A history document to hand a buyer
 - **Export one vehicle's complete history as a PDF**: every service and the parts fitted,
   every MOT, the full mileage log, warranties and a list of the paperwork you hold.

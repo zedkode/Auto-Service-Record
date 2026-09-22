@@ -295,6 +295,24 @@ PUT    .../vehicles/:id/images/:imageId/primary
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
 
+**Tyre sets (OWN-005).** A set is what you own; an installation is a period it spent on
+the car. Every read computes `distance` — summed across **every** period the set has been
+fitted, with the open one measured against the vehicle's current mileage — and `tread`,
+from the most recent measurement. Neither is stored.
+
+`distance` reports `miles`, `kilometres` and `metres`, plus `measuredPeriods` and
+`unmeasuredPeriods`, so a total drawn from three of five fittings is visibly partial. It is
+null with `NEVER_FITTED`, `NO_INSTALL_READING` or `NO_CURRENT_READING` when it cannot be
+worked out.
+
+`tread.state` is `GOOD`, `MONITOR`, `REPLACE_SOON`, `ILLEGAL` or `UNKNOWN`, against a
+1.6 mm legal minimum and a 3.0 mm advisory depth, and is **never estimated from mileage**
+(DECISIONS.md D-109). A reading older than 180 days is flagged `stale`.
+
+`POST /tyre-sets/:id/fit` closes whatever was fitted, at the same date and odometer — a car
+wears one set at a time (D-108). Fitting an already-fitted set, deleting one that is on the
+car, or measuring tread on a stored set each return `409`.
+
 **Warranties (OWN-004).** A warranty ends on a date **or** a mileage, whichever comes
 first, so every read carries a computed `status`:
 `{ state, governedBy, daysRemaining, distanceRemaining, cautions }`. `state` is `ACTIVE`,
@@ -462,7 +480,11 @@ GET    .../maintenance/due                       workspace-wide due/overdue
 .../vehicles/:id/road-tax             GET POST      + /:id GET PATCH DELETE
 .../warranties                        GET           whole workspace, or ?vehicleId=
 .../vehicles/:id/warranties           GET POST      + /warranties/:id GET PATCH DELETE
-.../vehicles/:id/tyres                GET POST      + /:id GET PATCH DELETE
+.../tyre-sets                         GET           whole workspace, or ?vehicleId=
+.../vehicles/:id/tyre-sets            GET POST      + /tyre-sets/:id GET PATCH DELETE
+.../tyre-sets/:id/fit                 POST          fits it, taking off whatever was on
+.../tyre-sets/:id/remove              POST          ends the current fitting
+.../tyre-sets/:id/tread               POST          records a measured depth
 .../tyre-sets/:id/installations       GET POST      + /:id PATCH DELETE
 .../vehicles/:id/fuel                 GET POST      + /:id GET PATCH DELETE
 .../vehicles/:id/fuel/economy         GET           tank-to-tank consumption
