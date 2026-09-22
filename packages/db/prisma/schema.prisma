@@ -262,6 +262,16 @@ enum ExpenseSourceType {
 
 /// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
 /// country's inspection regime is a new enum member, not a new table.
+enum WarrantyType {
+  MANUFACTURER
+  DEALER
+  THIRD_PARTY
+  /// A warranty on a specific part, measured from when it was fitted.
+  PART
+  /// A workshop's guarantee on a repair, likewise measured from the work.
+  REPAIR
+}
+
 enum ExportKind {
   EXPENSES
   SERVICES
@@ -391,6 +401,7 @@ model User {
   fuelEntries             FuelEntry[]
 
   requestedExports ExportJob[]
+  createdWarranties Warranty[]
   @@index([status])
   @@map("users")
 }
@@ -616,6 +627,7 @@ model Vehicle {
 
   // Composite key that tenant-owned children reference. This is what lets PostgreSQL
   // reject a child row whose workspace disagrees with its parent's.
+  warranties Warranty[]
   @@unique([id, workspaceId], map: "vehicles_id_workspace_uk")
   @@index([workspaceId])
   @@index([workspaceId, status])
@@ -1189,6 +1201,7 @@ model ServiceRecord {
   completions MaintenanceCompletion[]
   resolvedAdvisories InspectionAdvisory[]
 
+  warranties Warranty[]
   @@unique([id, workspaceId], map: "service_records_id_workspace_uk")
   @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
   /// Same shape as the odometer index: the dashboard reads the newest services across
@@ -1222,6 +1235,8 @@ model ServiceRecordPart {
   // Cascade: a part has no meaning without its service record.
   serviceRecord ServiceRecord @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
 
+  warranties Warranty[]
+  @@unique([id, workspaceId], map: "service_record_parts_id_workspace_uk")
   @@index([workspaceId, serviceRecordId])
   @@map("service_record_parts")
 }
@@ -1556,4 +1571,57 @@ model ExportJob {
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([status, expiresAt])
   @@map("export_jobs")
+}
+
+/// OWN-004 — a warranty, which ends at a date OR a mileage, whichever comes first.
+///
+/// The two limits are the whole point: "3 years or 60,000 miles" is one obligation with
+/// two clocks, and a product that tracks only the date tells the owner they are covered
+/// when they are not (DECISIONS.md D-099).
+model Warranty {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  warrantyType WarrantyType @map("warranty_type")
+  providerName String?      @map("provider_name")
+  contactId    String?      @map("contact_id") @db.Uuid
+  reference    String?
+
+  startsOn  DateTime  @map("starts_on") @db.Date
+  expiresOn DateTime? @map("expires_on") @db.Date
+
+  /// The mileage limit, and the reading it is measured FROM.
+  ///
+  /// `startOdometer` is what distinguishes the two kinds of limit. A manufacturer warranty
+  /// of "60,000 miles" means the odometer reaching 60,000, so it is null. A part or repair
+  /// warranty of "12,000 miles" means 12,000 miles of driving from the day it was fitted,
+  /// so it carries the reading at that moment. Without this the same number means two
+  /// different things and the product silently picks one (DECISIONS.md D-100).
+  distanceLimit     Int?          @map("distance_limit")
+  distanceLimitUnit DistanceUnit? @map("distance_limit_unit")
+  startOdometer     Int?          @map("start_odometer")
+  startOdometerUnit DistanceUnit? @map("start_odometer_unit")
+
+  coverageNotes String? @map("coverage_notes")
+
+  /// What this warranty covers, when it came from work done rather than from the vehicle.
+  serviceRecordId String? @map("service_record_id") @db.Uuid
+  servicePartId   String? @map("service_part_id") @db.Uuid
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle            @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  serviceRecord ServiceRecord?     @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  servicePart   ServiceRecordPart? @relation(fields: [servicePartId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "warranties_id_workspace_uk")
+  @@index([workspaceId, vehicleId, expiresOn(sort: Desc)])
+  @@index([expiresOn], map: "warranties_expires_on_idx")
+  @@map("warranties")
 }

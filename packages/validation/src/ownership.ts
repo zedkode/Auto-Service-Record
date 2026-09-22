@@ -157,3 +157,72 @@ export const updateRoadTaxSchema = z
   })
   .superRefine(expiryAfter('startsOn'))
 export type UpdateRoadTaxInput = z.infer<typeof updateRoadTaxSchema>
+
+export const warrantyType = z.enum(['MANUFACTURER', 'DEALER', 'THIRD_PARTY', 'PART', 'REPAIR'])
+
+/**
+ * A mileage limit is meaningless without its unit, and a unit is meaningless without a
+ * limit. Enforced together because `MILES` and `KILOMETERS` are never compared raw
+ * (AGENTS.md) — a bare number would have to be assumed into one of them somewhere.
+ */
+const distancePairs = <
+  T extends {
+    distanceLimit?: number | null
+    distanceLimitUnit?: string | null
+    startOdometer?: number | null
+    startOdometerUnit?: string | null
+  },
+>(
+  value: T,
+  ctx: z.RefinementCtx,
+) => {
+  if (value.distanceLimit != null && !value.distanceLimitUnit) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['distanceLimitUnit'],
+      message: 'Choose miles or kilometres for the mileage limit.',
+    })
+  }
+  if (value.startOdometer != null && !value.startOdometerUnit) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['startOdometerUnit'],
+      message: 'Choose miles or kilometres for the starting reading.',
+    })
+  }
+}
+
+export const createWarrantySchema = z
+  .object({
+    warrantyType: warrantyType,
+    providerName: shortText.optional(),
+    reference: shortText.optional(),
+    startsOn: calendarDate,
+    expiresOn: calendarDate.optional(),
+    distanceLimit: z.number().int().positive().max(2_000_000).optional(),
+    distanceLimitUnit: distanceUnit.optional(),
+    startOdometer: z.number().int().nonnegative().max(2_000_000).optional(),
+    startOdometerUnit: distanceUnit.optional(),
+    coverageNotes: longText.optional(),
+    serviceRecordId: z.uuid().optional(),
+  })
+  .superRefine(expiryAfter('startsOn'))
+  .superRefine(distancePairs)
+export type CreateWarrantyInput = z.infer<typeof createWarrantySchema>
+
+export const updateWarrantySchema = z
+  .object({
+    warrantyType: warrantyType.optional(),
+    providerName: shortText.optional(),
+    reference: shortText.optional(),
+    startsOn: calendarDate.optional(),
+    expiresOn: calendarDate.optional(),
+    distanceLimit: z.number().int().positive().max(2_000_000).optional(),
+    distanceLimitUnit: distanceUnit.optional(),
+    startOdometer: z.number().int().nonnegative().max(2_000_000).optional(),
+    startOdometerUnit: distanceUnit.optional(),
+    coverageNotes: longText.optional(),
+  })
+  .superRefine(expiryAfter('startsOn'))
+  .superRefine(distancePairs)
+export type UpdateWarrantyInput = z.infer<typeof updateWarrantySchema>

@@ -12,6 +12,7 @@ import {
   InsuranceReminderSource,
   RoadTaxReminderSource,
 } from './sources/expiry.sources.js'
+import { WarrantyReminderSource } from './sources/warranty.source.js'
 import { deliveryKey, evaluateDateWindow, evaluateDistanceWindow } from './reminder.policy.js'
 import type { ReminderCandidate, ReminderSource } from './reminder.types.js'
 
@@ -43,6 +44,7 @@ export class RemindersService {
     inspectionSource: InspectionReminderSource,
     insuranceSource: InsuranceReminderSource,
     roadTaxSource: RoadTaxReminderSource,
+    warrantySource: WarrantyReminderSource,
   ) {
     // Registering a source is the ONLY change needed to add inspections, insurance or
     // tax reminders later. The engine below is source-agnostic.
@@ -52,6 +54,7 @@ export class RemindersService {
       inspectionSource,
       insuranceSource,
       roadTaxSource,
+      warrantySource,
     ]
   }
 

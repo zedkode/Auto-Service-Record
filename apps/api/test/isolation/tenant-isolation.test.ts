@@ -291,6 +291,7 @@ describe('LAYER 2: the Prisma tenant extension scopes every operation', () => {
         'Vehicle',
         'VehicleImage',
         'VehicleInspection',
+        'Warranty',
         'WorkspaceInvitation',
         'WorkspaceMember',
       ].sort(),

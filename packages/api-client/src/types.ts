@@ -586,6 +586,38 @@ export interface FuelEconomy {
   fillCount: number
 }
 
+/** OWN-004 — a warranty, which ends on a date or a mileage, whichever comes first. */
+export type WarrantyType = 'MANUFACTURER' | 'DEALER' | 'THIRD_PARTY' | 'PART' | 'REPAIR'
+
+export interface WarrantyStatus {
+  state: 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'NOT_STARTED' | 'UNKNOWN'
+  /** Which clock ran out, or will run out first. */
+  governedBy: 'DATE' | 'DISTANCE' | null
+  daysRemaining: number | null
+  /** In `distanceLimitUnit`. */
+  distanceRemaining: number | null
+  cautions: Array<'NO_ODOMETER' | 'NO_START_ODOMETER'>
+}
+
+export interface Warranty {
+  id: string
+  vehicleId: string
+  vehicleName: string | null
+  warrantyType: WarrantyType
+  providerName: string | null
+  reference: string | null
+  startsOn: string | null
+  expiresOn: string | null
+  distanceLimit: number | null
+  distanceLimitUnit: 'MILES' | 'KILOMETERS' | null
+  startOdometer: number | null
+  startOdometerUnit: 'MILES' | 'KILOMETERS' | null
+  coverageNotes: string | null
+  serviceRecordId: string | null
+  /** Computed by the API on every read, never stored. */
+  status: WarrantyStatus
+}
+
 /** EXP-001 — an asynchronous data export. */
 export type ExportKind = 'EXPENSES' | 'SERVICES' | 'FUEL' | 'ODOMETER' | 'VEHICLES'
 export type ExportFormat = 'CSV' | 'JSON'

@@ -9,6 +9,7 @@ import type {
   DownloadLink,
   DueMaintenanceItem,
   FuelEconomy,
+  Warranty,
   ExportDownload,
   ExportFormat,
   ExportJob,
@@ -322,6 +323,18 @@ export function createApi(client: ApiClient) {
       update: (ws: string, id: string, input: Record<string, unknown>) =>
         client.patch<FuelEntry>(`/workspaces/${ws}/fuel/${id}`, input),
       remove: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/fuel/${id}`),
+    },
+
+    warranties: {
+      list: (ws: string, vehicleId?: string) =>
+        client.get<Warranty[]>(
+          `/workspaces/${ws}/warranties${vehicleId ? `?vehicleId=${vehicleId}` : ''}`,
+        ),
+      create: (ws: string, vehicleId: string, input: Record<string, unknown>) =>
+        client.post<Warranty>(`/workspaces/${ws}/vehicles/${vehicleId}/warranties`, input),
+      update: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.patch<Warranty>(`/workspaces/${ws}/warranties/${id}`, input),
+      remove: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/warranties/${id}`),
     },
 
     exports: {
