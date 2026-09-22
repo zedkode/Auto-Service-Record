@@ -295,6 +295,26 @@ PUT    .../vehicles/:id/images/:imageId/primary
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
 
+**Warranties (OWN-004).** A warranty ends on a date **or** a mileage, whichever comes
+first, so every read carries a computed `status`:
+`{ state, governedBy, daysRemaining, distanceRemaining, cautions }`. `state` is `ACTIVE`,
+`EXPIRING_SOON`, `EXPIRED`, `NOT_STARTED` or `UNKNOWN`; `governedBy` is `DATE` or
+`DISTANCE` and names whichever clock ran out, or will run out first. It is computed against
+the vehicle's current odometer on every request and **never stored** — a stored state is
+wrong as soon as a reading is entered (DECISIONS.md D-099).
+
+`distanceLimit` means an absolute odometer reading when `startOdometer` is null, and an
+allowance measured from that reading when it is set: "60,000 miles" on a manufacturer
+warranty against "12,000 miles" on a clutch fitted at 90,000 (D-100). A `PART` or `REPAIR`
+warranty with no starting reading returns the caution `NO_START_ODOMETER`; a mileage limit
+on a vehicle with no reading at all returns `NO_ODOMETER` and falls back to the date.
+`distanceLimit` and `distanceLimitUnit` must be supplied together, as must `startOdometer`
+and its unit — miles and kilometres are converted, never compared raw.
+
+Warranties feed the reminder engine as source type `WARRANTY`. Unlike the other expiry
+sources, each warranty is judged on its own rather than only the newest per vehicle, and an
+ended one stops being reported after 90 days or a 5,000-unit mileage overrun (D-101).
+
 **Data export (EXP-001).** `POST /workspaces/:ws/exports` takes
 `{ kind, format, from?, to?, vehicleId? }` and returns **202** with the job row — it does
 not wait for the file. `kind` is `EXPENSES`, `SERVICES`, `FUEL`, `ODOMETER` or `VEHICLES`;
@@ -428,7 +448,8 @@ GET    .../maintenance/due                       workspace-wide due/overdue
 .../inspections/:id/advisories        GET POST      + /:id PATCH DELETE
 .../vehicles/:id/insurance-policies    GET POST      + /:id GET PATCH DELETE
 .../vehicles/:id/road-tax             GET POST      + /:id GET PATCH DELETE
-.../vehicles/:id/warranties           GET POST      + /:id GET PATCH DELETE
+.../warranties                        GET           whole workspace, or ?vehicleId=
+.../vehicles/:id/warranties           GET POST      + /warranties/:id GET PATCH DELETE
 .../vehicles/:id/tyres                GET POST      + /:id GET PATCH DELETE
 .../tyre-sets/:id/installations       GET POST      + /:id PATCH DELETE
 .../vehicles/:id/fuel                 GET POST      + /:id GET PATCH DELETE

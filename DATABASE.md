@@ -309,13 +309,17 @@ road_tax_records
 warranties
   id, workspace_id, vehicle_id, warranty_type, provider_name, contact_id,
   reference, starts_on (date), expires_on (date), distance_limit,
-  distance_limit_unit, coverage_notes, service_record_id, service_part_id,
-  timestamps
+  distance_limit_unit, start_odometer, start_odometer_unit, coverage_notes,
+  service_record_id, service_part_id, created_by_user_id, deleted_at, timestamps
 ```
 
 `inspection_type`: `MOT | ITP | TUV | CT | STATE_INSPECTION | EMISSIONS | OTHER`.
 `result`: `PASS | PASS_WITH_ADVISORIES | FAIL | UNKNOWN`.
-`warranty_type`: `MANUFACTURER | DEALER | THIRD_PARTY | PART | REPAIR`.
+`warranty_type`: `MANUFACTURER | DEALER | THIRD_PARTY | PART | REPAIR`. `start_odometer` was
+added during OWN-004: without it `distance_limit` is ambiguous, meaning an absolute
+odometer reading on a vehicle warranty but an allowance from the fitting reading on a part
+or repair. There is deliberately **no** stored status column — a warranty's state depends
+on the current odometer and is computed on every read (DECISIONS.md D-099/D-100).
 `payment_frequency`: `ONE_OFF | MONTHLY | QUARTERLY | BIANNUAL | ANNUAL`.
 
 `country_code` on `road_tax_records` keeps the model from being UK-shaped. Country-specific

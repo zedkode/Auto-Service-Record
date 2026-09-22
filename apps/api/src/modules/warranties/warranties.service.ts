@@ -63,12 +63,7 @@ export class WarrantiesService {
     return this.view(row, vehicle ?? undefined)
   }
 
-  async create(
-    workspaceId: string,
-    vehicleId: string,
-    userId: string,
-    input: CreateWarrantyInput,
-  ) {
+  async create(workspaceId: string, vehicleId: string, userId: string, input: CreateWarrantyInput) {
     const db = this.prisma.forWorkspace(workspaceId)
     const vehicle = await db.vehicle.findFirst({
       where: { id: vehicleId, deletedAt: null },

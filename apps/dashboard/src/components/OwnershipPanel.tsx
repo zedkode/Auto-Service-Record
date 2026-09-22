@@ -19,6 +19,7 @@ import {
   type TrackingStatus,
 } from '@autoservices/ui'
 import { ApiError, type ExpiryStatus } from '@autoservices/api-client'
+import { WarrantyPanel } from './WarrantyPanel.js'
 import { api } from '../lib/api.js'
 import { useSession } from '../lib/use-session.js'
 
@@ -176,6 +177,8 @@ export function OwnershipPanel({ vehicleId }: { vehicleId: string }) {
         emptyTitle="No inspections recorded"
         emptyDescription="Add the last MOT or inspection certificate to start tracking its expiry."
       />
+
+      <WarrantyPanel vehicleId={vehicleId} />
 
       <AddInspectionDialog
         open={dialog === 'inspection'}

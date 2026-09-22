@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 48 | 0 | 0 | 0 | 9 | 35 |
-| **Total** | **142** | **93** | **3** | **1** | **0** | **9** | **36** |
+| 3–12 — Later phases | 92 | 49 | 0 | 0 | 0 | 9 | 34 |
+| **Total** | **142** | **94** | **3** | **1** | **0** | **9** | **35** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -239,10 +239,30 @@ where the column is `workshopName` — would have shipped an always-empty column
 schema-derived `TENANT_MODELS` failed the moment the model existed and had to be
 acknowledged explicitly.
 
-**Next recommended task:** `OWN-004` (warranties), which reuses an ownership shape already
-proven three times, then `EXP-002` (PDF vehicle history) which now has the export pipeline
-underneath it. `HARD-005` (index review against real query plans) is largely evidenced by
-`audit-plans.mjs` and could be closed by extending that script's query list.
+`OWN-004` is `DONE`, and it did **not** reuse the ownership shape as cleanly as expected.
+A warranty ends on a date OR a mileage, whichever comes first, and the mileage clock moves
+without anything happening in this system. `warrantyStatus` is therefore a pure engine with
+22 tests computing state against the vehicle's current reading on every read, and there is
+deliberately no stored status column (D-099). A vehicle doing 25,000 miles a year exhausts
+a 60,000-mile warranty in under three years, so a date-only implementation would tell its
+owner they are covered on the day they stopped being covered.
+
+Two domain rules are the substance: `distanceLimit` means an absolute odometer reading for
+a vehicle warranty and an allowance from the fitting reading for a part or repair, with the
+ambiguity resolved by `startOdometer` rather than guessed (D-100); and each warranty feeds
+the reminder engine on its own rather than only the newest per vehicle, because warranties
+are not renewals of each other (D-101) — a correction the live verification caught after the
+first implementation copied the MOT rule and produced no reminder at all.
+
+**Two masked checks were found in `verify-ui-service.mjs`**, both surfaced by fixing a
+verdict line that printed VERIFIED beside a failed check. Under it, a count taken straight
+after `waitForSelector` was reading 0 because React replaces the matched node when the query
+settles — so a maintenance panel rendering eleven rules had been passing as an empty one.
+Third instance of that race, now a helper rather than a sleep (D-102).
+
+**Next recommended task:** `EXP-002` (PDF vehicle history), which has the export pipeline
+underneath it now, or `HARD-005` (index review), largely evidenced by `audit-plans.mjs`.
+`OWN-005` (tyre sets) is the last unbuilt ownership record.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1393,7 +1413,7 @@ All are `BACKLOG` until their phase begins.
 | OWN-001 | Inspections and advisories | DONE | HIGH | VEH-002, REM-002 
 | OWN-002 | Insurance policies | DONE | HIGH | VEH-002, REM-002 
 | OWN-003 | Road tax and registration | DONE | HIGH | VEH-002, REM-002 
-| OWN-004 | Warranties, including part and repair warranties | BACKLOG | MEDIUM | VEH-002, REM-002 
+| OWN-004 | Warranties, including part and repair warranties | DONE | MEDIUM | VEH-002, REM-002 
 | OWN-005 | Tyre sets and installations | BACKLOG | MEDIUM | VEH-002 
 | OWN-006 | Fuel entries and consumption calculation | DONE | HIGH | VEH-004 
 | OWN-007 | Expenses and category management | DONE | HIGH | VEH-002 

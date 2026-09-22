@@ -13,6 +13,18 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — Warranties that know about mileage
+- **Record a warranty with its date and its mileage limit**, and see which one will run out
+  first. "Three years or 60,000 miles" is one promise with two clocks, and on a car doing
+  real mileage the second one usually arrives first.
+- **Part and repair guarantees count from when the work was done**, not from zero — tell us
+  the mileage at the time and the allowance is measured from there.
+- **You are told when cover ends on mileage**, with a reminder, rather than finding out at
+  the counter.
+- **Miles and kilometres are converted properly**, so a limit written in one and an odometer
+  read in the other still give the right answer.
+- **If we cannot check the mileage, we say so** instead of implying you are covered.
+
 ### Added — Take your data with you
 - **Export your costs, service history, fuel, mileage or vehicle list** as a spreadsheet
   (CSV) or JSON, over whatever date range you have chosen.

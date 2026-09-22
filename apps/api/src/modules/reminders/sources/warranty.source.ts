@@ -12,9 +12,15 @@ import type { ReminderCandidate, ReminderSource, ScanContext } from '../reminder
  * says. The state therefore comes from the same engine the API uses, against the vehicle's
  * current reading — one definition, so the reminder and the page can never disagree.
  *
- * The rule the other expiry sources follow holds here too: only the record that currently
- * protects the vehicle is worth a reminder. A car with four expired warranties in its
- * history must not generate four notifications about cover that ran out years ago.
+ * The rule the other expiry sources follow does NOT hold here, and getting that wrong was
+ * a modelling error worth recording. Inspections, policies and tax are the SAME obligation
+ * renewed, so only the newest matters. Warranties are not: a manufacturer powertrain
+ * warranty and a guarantee on a clutch are different cover, and a live clutch guarantee is
+ * no reason to stay silent about the powertrain cover ending. Each warranty is judged on
+ * its own.
+ *
+ * What stops a car with years of history nagging is AGE, not competition: a warranty that
+ * ended long ago is history, not news.
  */
 @Injectable()
 export class WarrantyReminderSource implements ReminderSource {
@@ -38,31 +44,10 @@ export class WarrantyReminderSource implements ReminderSource {
       },
     })
 
-    /**
-     * The best cover per vehicle, judged by the ENGINE rather than by expiry date. A
-     * warranty with a later date but no mileage left is not better cover than one that
-     * still has both, and sorting on the date alone would pick the wrong record.
-     */
-    const best = new Map<string, { row: (typeof rows)[number]; rank: number }>()
-    const RANK: Record<string, number> = {
-      ACTIVE: 4,
-      EXPIRING_SOON: 3,
-      NOT_STARTED: 2,
-      UNKNOWN: 1,
-      EXPIRED: 0,
-    }
-
+    const out: ReminderCandidate[] = []
     for (const row of rows) {
       const status = this.statusOf(row, ctx.today)
-      const rank = RANK[status.state] ?? 0
-      const held = best.get(row.vehicleId)
-      if (!held || rank > held.rank) best.set(row.vehicleId, { row, rank })
-    }
-
-    const out: ReminderCandidate[] = []
-    for (const { row } of best.values()) {
-      const status = this.statusOf(row, ctx.today)
-      if (status.state !== 'EXPIRING_SOON' && status.state !== 'EXPIRED') continue
+      if (status.state !== 'EXPIRING_SOON' && !this.recentlyEnded(status)) continue
 
       const name = `${row.vehicle.manufacturer} ${row.vehicle.model}`
       const label = LABEL[row.warrantyType as WarrantyType] ?? 'Warranty'
@@ -89,6 +74,22 @@ export class WarrantyReminderSource implements ReminderSource {
     return out
   }
 
+  /**
+   * Whether an ended warranty is still worth saying anything about.
+   *
+   * By date, the window is the same 90 days the other expiry sources use. By mileage there
+   * is no date to age against — we only learn the limit was passed when a reading arrives —
+   * so the window is the size of the overrun instead. Past either, the warranty is part of
+   * the vehicle's history and not something to act on.
+   */
+  private recentlyEnded(status: ReturnType<typeof warrantyStatus>): boolean {
+    if (status.state !== 'EXPIRED') return false
+    if (status.governedBy === 'DISTANCE' && status.distanceRemaining !== null) {
+      return Math.abs(status.distanceRemaining) <= RECENT_OVERRUN
+    }
+    return status.daysRemaining !== null && status.daysRemaining >= -RECENT_DAYS
+  }
+
   private statusOf(
     row: {
       warrantyType: string
@@ -98,7 +99,10 @@ export class WarrantyReminderSource implements ReminderSource {
       distanceLimitUnit: 'MILES' | 'KILOMETERS' | null
       startOdometer: number | null
       startOdometerUnit: 'MILES' | 'KILOMETERS' | null
-      vehicle: { currentOdometer: number | null; currentOdometerUnit: 'MILES' | 'KILOMETERS' | null }
+      vehicle: {
+        currentOdometer: number | null
+        currentOdometerUnit: 'MILES' | 'KILOMETERS' | null
+      }
     },
     today: CalendarDate,
   ) {
@@ -142,6 +146,11 @@ export class WarrantyReminderSource implements ReminderSource {
     return `The ${label.toLowerCase()} is ending.`
   }
 }
+
+/** How long after it ends a warranty is still news rather than history. */
+const RECENT_DAYS = 90
+/** And the mileage equivalent, in the limit's own unit. */
+const RECENT_OVERRUN = 5_000
 
 const LABEL: Record<WarrantyType, string> = {
   MANUFACTURER: 'Manufacturer warranty',

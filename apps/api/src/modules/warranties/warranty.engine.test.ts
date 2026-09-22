@@ -20,7 +20,10 @@ const warranty = (over: Partial<WarrantyInput> = {}): WarrantyInput => ({
   ...over,
 })
 
-const odometer = (value: number | null, unit: 'MILES' | 'KILOMETERS' = 'MILES'): WarrantyReading => ({
+const odometer = (
+  value: number | null,
+  unit: 'MILES' | 'KILOMETERS' = 'MILES',
+): WarrantyReading => ({
   currentOdometer: value,
   currentOdometerUnit: value === null ? null : unit,
 })

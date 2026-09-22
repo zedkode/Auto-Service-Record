@@ -81,9 +81,7 @@ export const EXPIRING_SOON_DAYS = 90
 export const EXPIRING_SOON_DISTANCE_MILES = 1000
 
 const daysBetween = (from: string, to: string) =>
-  Math.round(
-    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000,
-  )
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
 
 export function warrantyStatus(
   warranty: WarrantyInput,
@@ -139,7 +137,13 @@ export function warrantyStatus(
   }
 
   if (daysRemaining === null && distanceRemaining === null) {
-    return { state: 'UNKNOWN', governedBy: null, daysRemaining: null, distanceRemaining: null, cautions }
+    return {
+      state: 'UNKNOWN',
+      governedBy: null,
+      daysRemaining: null,
+      distanceRemaining: null,
+      cautions,
+    }
   }
 
   // --- whichever ran out first ---

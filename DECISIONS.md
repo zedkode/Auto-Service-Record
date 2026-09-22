@@ -12,6 +12,54 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Warranties
+
+### D-102 · A count taken straight after `waitForSelector` is not a measurement
+Verification scripts now settle a count before asserting on it: poll until the number is
+non-zero and unchanged across two samples. **Why:** `waitForSelector` resolves on the first
+matching node, React then replaces that node when the query settles, and a `.count()` taken
+in that gap returns 0. The maintenance check had been reporting "0 combined-interval items"
+through `ok()` for some time — a panel that renders eleven rules looked like a passing
+check of an empty one. **This is the third instance of the same race** in these scripts
+(the admin table in an earlier session, the timeline tab in this one), which is why it is a
+helper rather than another `waitForTimeout`. A sleep hides the race at whatever duration
+happens to work on this machine.
+
+### D-101 · Each warranty is judged on its own, and silenced by age rather than by rivals
+The warranty reminder source reports every warranty that is ending or has recently ended,
+not the "best" one per vehicle. **Why this is a correction:** the first implementation
+copied the rule from inspections, policies and tax, where only the newest record matters
+because each is the SAME obligation renewed. Warranties are not renewals of each other — a
+manufacturer powertrain warranty and a guarantee on a clutch cover different things, and a
+live clutch guarantee is no reason to say nothing about the powertrain cover ending. The
+result was a vehicle with an expired manufacturer warranty and a live part warranty
+generating no reminder at all, which the live verification caught.
+**What stops a long history nagging is age:** an ended warranty is reported for 90 days by
+date, or while the mileage overrun is under 5,000, and is history after that.
+
+### D-100 · A mileage limit means one of two things, and the starting reading says which
+`distanceLimit` is read as an absolute odometer figure when `startOdometer` is null, and as
+an allowance from that reading when it is set. **Why:** "60,000 miles" on a manufacturer
+warranty means the odometer reaching 60,000; "12,000 miles" on a clutch fitted at 90,000
+means 102,000. The same number, two meanings, and nothing in the number distinguishes them.
+**Consequence:** a `PART` or `REPAIR` warranty saved without a starting reading is flagged
+`NO_START_ODOMETER` rather than quietly read as an absolute limit — which on a 95,000-mile
+car would say "expired" in a way that looks entirely plausible and is wrong. The form only
+offers the field for those two types, because for the others it would be noise.
+
+### D-099 · Warranty state is computed on every read, never stored
+`warrantyStatus` runs against the vehicle's current odometer each time a warranty is read,
+and no `status` column exists. **Why:** a warranty ends at a date OR a mileage, whichever
+comes first, and the mileage clock moves without anything happening in this system. A
+stored "ACTIVE" becomes a lie the moment a reading is entered, and the lie is the expensive
+direction: telling an owner they are covered on the day they stopped being covered. A
+vehicle doing 25,000 miles a year exhausts a 60,000-mile warranty in well under three
+years, so this is the ordinary case rather than an edge one. **Consequence:** the engine is
+pure and the same function serves the API, the reminder source and the UI — one definition,
+so the page and the email can never disagree.
+
+---
+
 ## 2026-09-22 — Data export
 
 ### D-098 · Export decimals are rendered at the precision the column stores
