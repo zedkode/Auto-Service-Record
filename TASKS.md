@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 49 | 0 | 0 | 0 | 9 | 34 |
-| **Total** | **142** | **94** | **3** | **1** | **0** | **9** | **35** |
+| 3–12 — Later phases | 92 | 50 | 0 | 0 | 0 | 9 | 33 |
+| **Total** | **142** | **95** | **3** | **1** | **0** | **9** | **34** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -208,8 +208,12 @@ re-reading the same vehicles seven times for names it had already loaded (D-092)
 "most recent across the workspace" queries had no index that could order them, so each read
 the whole workspace and sorted to take eight rows (D-093).
 
-**No sequential scan appeared on any table at 155k rows** — index coverage was otherwise
-sound, which is the useful negative result and what `HARD-005` (index review) mostly needed.
+**Correction (HARD-005).** This section originally read "no sequential scan appeared on any
+table at 155k rows". That was wrong: the detector behind it matched a fixed JSON key order
+and missed scans inside subplans, including a full scan of a 19,519-row table. With the
+detector fixed (D-104), scans do appear — all of them on tables small enough that scanning
+is the right plan, confirmed by growing `vehicles` to 60,000 rows and watching the planner
+switch to `vehicles_workspace_active_idx` by itself.
 
 **A mistake worth keeping in the record:** the first migration created one of the three
 indexes on the wrong table, and the schema diff looked correct. The benchmark caught it —
@@ -260,9 +264,26 @@ after `waitForSelector` was reading 0 because React replaces the matched node wh
 settles — so a maintenance panel rendering eleven rules had been passing as an empty one.
 Third instance of that race, now a helper rather than a sleep (D-102).
 
+`HARD-005` is `DONE`, and it was not the formality the previous note assumed.
+`scripts/audit-indexes.mjs` asks the three questions an index review has to answer —
+which indexes real traffic reads, which are redundant, and which foreign keys have none.
+
+- **No redundant indexes.** (The first run said seventeen, all primary keys; the check was
+  comparing a boolean against psql's display form `'t'` instead of `'true'`, so its
+  "skip unique indexes" rule never fired. Second time that trap has appeared here.)
+- **25 foreign keys had no index**, which is the real finding. Postgres does not create one,
+  so deleting a parent scanned the whole child table — nine of them were
+  `created_by_user_id`, making account erasure a scan of nine tables. Measured on
+  `expenses` at 19,519 rows: 2.27 ms → 0.04 ms, and it scales with the table (D-103).
+- **Usage figures were deliberately not acted on.** 140 of 146 indexes went unread by one
+  sweep of the customer API, which says the demo workspace is small, not that the indexes
+  are dead.
+
+**The HARD-004 claim above has been corrected.** Its "no sequential scans" result came from
+a detector that could not see scans inside subplans (D-104).
+
 **Next recommended task:** `EXP-002` (PDF vehicle history), which has the export pipeline
-underneath it now, or `HARD-005` (index review), largely evidenced by `audit-plans.mjs`.
-`OWN-005` (tyre sets) is the last unbuilt ownership record.
+underneath it, then `OWN-005` (tyre sets), the last unbuilt ownership record.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1486,7 +1507,7 @@ All are `BACKLOG` until their phase begins.
 | HARD-002 | Authorisation and isolation audit | BACKLOG | CRITICAL | SEC-007 
 | HARD-003 | Document pipeline penetration review | DONE | CRITICAL | DOC-104 
 | HARD-004 | Query performance and N+1 sweep | DONE | HIGH | all 
-| HARD-005 | Index review against real query plans | BACKLOG | HIGH | HARD-004 
+| HARD-005 | Index review against real query plans | DONE | HIGH | HARD-004 
 | HARD-006 | Backup **restore** rehearsal | BACKLOG | CRITICAL | — 
 | HARD-007 | Observability and alerting completion | BACKLOG | HIGH | CORE-006 
 | HARD-008 | Full E2E matrix | BACKLOG | HIGH | all 

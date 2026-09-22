@@ -687,6 +687,7 @@ model OdometerEntry {
   vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([createdByUserId], map: "odometer_entries_created_by_user_id_fk_idx")
   @@index([vehicleId, recordedOn(sort: Desc), value(sort: Desc)])
   @@index([workspaceId, vehicleId])
   /// Workspace-wide "most recent readings", which the dashboard asks for on every load.
@@ -735,6 +736,7 @@ model VehicleInspection {
 
   advisories InspectionAdvisory[]
 
+  @@index([createdByUserId], map: "vehicle_inspections_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "vehicle_inspections_id_workspace_uk")
   @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
   /// Same shape again: the dashboard reads the newest inspections across the workspace.
@@ -762,6 +764,7 @@ model InspectionAdvisory {
   inspection            VehicleInspection @relation(fields: [inspectionId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
   resolvedServiceRecord ServiceRecord?    @relation(fields: [resolvedServiceRecordId], references: [id], onDelete: SetNull)
 
+  @@index([resolvedServiceRecordId], map: "inspection_advisories_resolved_service_record_id_fk_idx")
   @@unique([id, workspaceId], map: "inspection_advisories_id_workspace_uk")
   @@index([workspaceId, inspectionId])
   @@index([workspaceId, isResolved])
@@ -799,6 +802,7 @@ model InsurancePolicy {
   vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([createdByUserId], map: "insurance_policies_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "insurance_policies_id_workspace_uk")
   @@index([workspaceId, vehicleId, startsOn(sort: Desc)])
   @@index([expiresOn], map: "insurance_policies_expires_on_idx")
@@ -833,6 +837,7 @@ model RoadTaxRecord {
   vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([createdByUserId], map: "road_tax_records_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "road_tax_records_id_workspace_uk")
   @@index([workspaceId, vehicleId, startsOn(sort: Desc)])
   @@index([expiresOn], map: "road_tax_records_expires_on_idx")
@@ -897,6 +902,8 @@ model Expense {
   category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdByUser User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([categoryId], map: "expenses_category_id_fk_idx")
+  @@index([createdByUserId], map: "expenses_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "expenses_id_workspace_uk")
   @@unique([sourceType, sourceRecordId], map: "expenses_source_uk")
   @@index([workspaceId, incurredOn(sort: Desc)])
@@ -941,6 +948,7 @@ model Document {
   vehicle        Vehicle? @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   uploadedByUser User?    @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
+  @@index([uploadedByUserId], map: "documents_uploaded_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "documents_id_workspace_uk")
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([workspaceId, vehicleId, createdAt(sort: Desc)])
@@ -1086,6 +1094,7 @@ model FuelEntry {
   vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([createdByUserId], map: "fuel_entries_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "fuel_entries_id_workspace_uk")
   @@index([workspaceId, vehicleId, filledOn(sort: Desc)])
   @@index([workspaceId, vehicleId, odometer])
@@ -1117,6 +1126,10 @@ model AuditLog {
   actorUser  User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
   actorAdmin AdminUser? @relation(fields: [actorAdminId], references: [id], onDelete: SetNull)
 
+  /// Foreign keys need their own index: Postgres does not create one, and without it
+  /// every delete or key-update of a PARENT row scans this whole table to find children.
+  /// Added as a group by the HARD-005 review (DECISIONS.md D-103).
+  @@index([actorAdminId], map: "audit_logs_actor_admin_id_fk_idx")
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([resourceType, resourceId, createdAt(sort: Desc)])
   @@index([actorUserId, createdAt(sort: Desc)])
@@ -1202,6 +1215,8 @@ model ServiceRecord {
   resolvedAdvisories InspectionAdvisory[]
 
   warranties Warranty[]
+  @@index([categoryId], map: "service_records_category_id_fk_idx")
+  @@index([createdByUserId], map: "service_records_created_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "service_records_id_workspace_uk")
   @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
   /// Same shape as the odometer index: the dashboard reads the newest services across
@@ -1284,6 +1299,7 @@ model MaintenanceRule {
 
   completions MaintenanceCompletion[]
 
+  @@index([categoryId], map: "maintenance_rules_category_id_fk_idx")
   @@unique([id, workspaceId], map: "maintenance_rules_id_workspace_uk")
   @@index([workspaceId, vehicleId, isActive])
   @@index([status, nextDueOn])
@@ -1313,6 +1329,7 @@ model MaintenanceCompletion {
   // in normal operation.
   serviceRecord ServiceRecord?  @relation(fields: [serviceRecordId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
 
+  @@index([serviceRecordId, workspaceId], map: "maintenance_completions_service_record_id_fk_idx")
   @@index([workspaceId, ruleId, completedOn(sort: Desc)])
   @@map("maintenance_completions")
 }
@@ -1367,6 +1384,7 @@ model Reminder {
 
   /// One live reminder per source. Completed and cancelled ones are excluded by a
   /// partial index added in the migration, so history is retained.
+  @@index([targetUserId], map: "reminders_target_user_id_fk_idx")
   @@unique([id, workspaceId], map: "reminders_id_workspace_uk")
   @@index([workspaceId, status])
   @@index([status, dueOn])
@@ -1394,6 +1412,7 @@ model Notification {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   reminder  Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
 
+  @@index([reminderId], map: "notifications_reminder_id_fk_idx")
   @@index([userId, createdAt(sort: Desc)])
   @@index([workspaceId, userId])
   @@map("notifications")
@@ -1414,6 +1433,7 @@ model NotificationPreference {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId], map: "notification_preferences_workspace_id_fk_idx")
   @@unique([userId, workspaceId, category, channel])
   @@map("notification_preferences")
 }
@@ -1443,6 +1463,9 @@ model NotificationDelivery {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
 
+  @@index([emailMessageId], map: "notification_deliveries_email_message_id_fk_idx")
+  @@index([reminderId], map: "notification_deliveries_reminder_id_fk_idx")
+  @@index([userId], map: "notification_deliveries_user_id_fk_idx")
   @@index([workspaceId, createdAt(sort: Desc)])
   @@map("notification_deliveries")
 }
@@ -1479,6 +1502,7 @@ model EmailMessage {
   events     EmailDeliveryEvent[]
   deliveries NotificationDelivery[]
 
+  @@index([userId], map: "email_messages_user_id_fk_idx")
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([providerMessageId])
   @@index([status, createdAt(sort: Desc)])
@@ -1567,6 +1591,7 @@ model ExportJob {
   workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   requestedByUser User?     @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
 
+  @@index([requestedByUserId], map: "export_jobs_requested_by_user_id_fk_idx")
   @@unique([id, workspaceId], map: "export_jobs_id_workspace_uk")
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([status, expiresAt])
@@ -1620,6 +1645,9 @@ model Warranty {
   servicePart   ServiceRecordPart? @relation(fields: [servicePartId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
   createdByUser User?              @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
+  @@index([createdByUserId], map: "warranties_created_by_user_id_fk_idx")
+  @@index([servicePartId, workspaceId], map: "warranties_service_part_id_fk_idx")
+  @@index([serviceRecordId, workspaceId], map: "warranties_service_record_id_fk_idx")
   @@unique([id, workspaceId], map: "warranties_id_workspace_uk")
   @@index([workspaceId, vehicleId, expiresOn(sort: Desc)])
   @@index([expiresOn], map: "warranties_expires_on_idx")

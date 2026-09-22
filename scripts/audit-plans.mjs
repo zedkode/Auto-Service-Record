@@ -144,10 +144,26 @@ function explain(label, sql) {
   const plan = psql(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`)
   const parsed = JSON.parse(plan)[0]
   const ms = parsed['Execution Time']
-  const text = JSON.stringify(parsed.Plan)
-  const seqScans = [
-    ...text.matchAll(/"Node Type":"Seq Scan","Parallel Aware":\w+,"Relation Name":"([^"]+)"/g),
-  ].map((m) => m[1])
+  /**
+   * Walk the plan tree rather than pattern-matching its JSON. The regex this replaces
+   * required an exact key order and the literal words "Seq Scan", so it silently missed a
+   * "Parallel Seq Scan" and anything nested in a subplan or InitPlan — a full scan taking
+   * 2.27 ms was reported as no scan at all. A detector that can miss what it looks for is
+   * worse than no detector, because it is quoted as evidence.
+   */
+  const seqScans = []
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return
+    if (typeof node['Node Type'] === 'string' && node['Node Type'].includes('Seq Scan')) {
+      seqScans.push(node['Relation Name'] ?? '?')
+    }
+    for (const key of ['Plans', 'Plan']) {
+      const child = node[key]
+      if (Array.isArray(child)) child.forEach(walk)
+      else if (child) walk(child)
+    }
+  }
+  walk(parsed.Plan)
   return { label, ms, seqScans, rows: parsed.Plan['Actual Rows'] }
 }
 
@@ -217,6 +233,11 @@ try {
         ORDER BY performed_on DESC, created_at DESC LIMIT 8`,
     ],
     [
+      'FK check — children of one user (what a user delete does)',
+      `SELECT 1 FROM expenses WHERE created_by_user_id =
+         (SELECT owner_user_id FROM workspaces WHERE id = '${ws}') LIMIT 1`,
+    ],
+    [
       'expenses list — newest first',
       `SELECT * FROM expenses WHERE workspace_id = '${ws}' AND deleted_at IS NULL
         ORDER BY incurred_on DESC LIMIT 50`,
@@ -235,14 +256,37 @@ try {
     )
   }
 
-  console.log('\nSequential scans on tables large enough to matter:\n')
-  if (findings.length === 0) {
-    console.log('  None — every query above used an index.')
+  /**
+   * A sequential scan of a small table is the planner being RIGHT: the whole table is a
+   * page or two, and an index lookup would cost more than reading it. Listing those as
+   * findings trains the reader to ignore the section. Only scans of tables big enough for
+   * an index to win are worth a human's attention — verified separately by growing
+   * `vehicles` to 60k rows, at which point the planner switches to the index by itself.
+   */
+  const SCAN_MATTERS_ABOVE = 5_000
+  console.log(`\nSequential scans on tables above ${SCAN_MATTERS_ABOVE.toLocaleString()} rows:\n`)
+  const sized = findings.flatMap((f) =>
+    [...new Set(f.seqScans)].map((t) => ({
+      label: f.label,
+      table: t,
+      rows: Number(psql(`SELECT count(*) FROM ${t};`)),
+      ms: f.ms,
+    })),
+  )
+  const serious = sized.filter((r) => r.rows >= SCAN_MATTERS_ABOVE)
+  if (serious.length === 0) {
+    console.log('  None — every scan was of a table small enough that scanning is correct.')
   } else {
-    for (const f of findings) {
-      const sizes = f.seqScans.map((t) => `${t} (${psql(`SELECT count(*) FROM ${t};`)} rows)`)
-      console.log(`  ${f.label}: ${sizes.join(', ')} — ${f.ms.toFixed(2)} ms`)
+    for (const r of serious) {
+      console.log(
+        `  ${r.label}: ${r.table} (${r.rows.toLocaleString()} rows) — ${r.ms.toFixed(2)} ms`,
+      )
     }
+  }
+  const small = sized.filter((r) => r.rows < SCAN_MATTERS_ABOVE)
+  if (small.length > 0) {
+    const tables = [...new Set(small.map((r) => `${r.table} (${r.rows})`))].join(', ')
+    console.log(`\n  Scanned, but correctly so at their size: ${tables}`)
   }
   console.log()
 } finally {

@@ -12,6 +12,38 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Index review
+
+### D-104 · A plan detector that can miss what it looks for is worse than none
+`audit-plans.mjs` now walks the plan tree instead of pattern-matching its JSON. **Why:**
+the regex it replaces required an exact key order and the literal words "Seq Scan", so it
+missed `Parallel Seq Scan` and anything inside a subplan or InitPlan. A full scan of a
+19,519-row table taking 2.27 ms was reported as no scan at all — and that reading is what
+the HARD-004 write-up quoted as "no sequential scan on any table at 155k rows". The claim
+was wrong; the correction is recorded rather than quietly edited, because a measurement
+that has been cited has to be corrected in public. **The same fix also tightened the
+report:** a scan of a 212-row table is the planner being right, so only scans of tables
+above 5,000 rows are listed as findings. A section that cries wolf is one nobody reads.
+
+### D-103 · Every foreign key gets an index
+25 indexes added, one per foreign key that had none. **Why:** Postgres creates an index for
+a primary key and for a unique constraint, but **not** for a foreign key — and without one,
+deleting or key-updating a parent row scans the whole child table to find its children.
+Nine of these were `created_by_user_id`, so erasing one account scanned nine tables end to
+end; measured on `expenses` at 19,519 rows, the check went from 2.27 ms to 0.04 ms, and it
+scales with the table rather than staying flat. Account erasure is a legal obligation with
+a deadline attached (`GDPR-002`), so "rare" is not a reason to leave it linear.
+**The cost is real and accepted:** 25 more indexes to maintain on write paths, several on
+the highest-volume tables in the schema. Judged worth it because all of them are
+append-mostly — rows are written once and rarely updated — so the write cost is paid once
+per row while the scan cost would be paid on every parent delete, for ever.
+**What was deliberately NOT done:** nothing was dropped. The usage figures show 140 of 146
+indexes unread by one sweep of the customer API, which says the demo workspace is small and
+the planner correctly scans it, not that 140 indexes are dead. Dropping on that evidence
+would be reckless.
+
+---
+
 ## 2026-09-22 — Warranties
 
 ### D-102 · A count taken straight after `waitForSelector` is not a measurement
