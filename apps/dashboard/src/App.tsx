@@ -17,6 +17,7 @@ import { MaintenancePage } from './routes/Maintenance.js'
 import { RemindersPage } from './routes/Reminders.js'
 import { ComingSoonPage } from './routes/ComingSoon.js'
 import { AcceptInvitationPage } from './routes/AcceptInvitation.js'
+import { FuelPage } from './routes/Fuel.js'
 import { ExpensesPage } from './routes/Expenses.js'
 import { DocumentsPage } from './routes/Documents.js'
 import { ApiError } from '@autoservices/api-client'
@@ -70,7 +71,7 @@ export function App() {
           <Route path="/service" element={<ServicesPage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/fuel" element={<ComingSoonPage title="Fuel tracking" phase="Phase 6" />} />
+          <Route path="/fuel" element={<FuelPage />} />
           <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/reports" element={<ComingSoonPage title="Reports" phase="Phase 10" />} />

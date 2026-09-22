@@ -73,6 +73,15 @@ enum FuelType {
   OTHER
 }
 
+/// What was put in. Electric vehicles use KWH and go through exactly the same
+/// tank-to-tank interval logic (DATABASE.md §4.8).
+enum QuantityUnit {
+  LITRES
+  US_GALLONS
+  IMP_GALLONS
+  KWH
+}
+
 enum Transmission {
   MANUAL
   AUTOMATIC
@@ -169,12 +178,6 @@ enum DeliveryStatus {
   SKIPPED
 }
 
-/// Why an address is refused. A complaint is the most serious: re-sending to someone who
-/// pressed "this is spam" is what gets a sending domain blocked.
-/// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
-/// country's inspection regime is a new enum member, not a new table.
-/// Where an expense came from. Anything other than MANUAL is a *projection* of another
-/// record, kept in step with it automatically (DATABASE.md §4.8).
 /// What a support grant opens. Deliberately coarse: a scope nobody can explain is a scope
 /// nobody reviews.
 enum SupportAccessScope {
@@ -241,6 +244,8 @@ enum DocumentAttachmentType {
   EXPENSE
 }
 
+/// Where an expense came from. Anything other than MANUAL is a *projection* of another
+/// record, kept in step with it automatically (DATABASE.md §4.8).
 enum ExpenseSourceType {
   MANUAL
   SERVICE
@@ -250,6 +255,8 @@ enum ExpenseSourceType {
   OTHER
 }
 
+/// `MOT` is UK terminology; the domain concept is generic (INIT.md §1.1). Adding a
+/// country's inspection regime is a new enum member, not a new table.
 enum InspectionType {
   MOT
   ITP
@@ -289,6 +296,8 @@ enum PolicyRenewalType {
   UNKNOWN
 }
 
+/// Why an address is refused. A complaint is the most serious: re-sending to someone who
+/// pressed "this is spam" is what gets a sending domain blocked.
 enum EmailSuppressionReason {
   HARD_BOUNCE
   COMPLAINT
@@ -351,6 +360,7 @@ model User {
   roadTaxRecords          RoadTaxRecord[]
   expenses                Expense[]
   documents               Document[]
+  fuelEntries             FuelEntry[]
 
   @@index([status])
   @@map("users")
@@ -572,6 +582,7 @@ model Vehicle {
   roadTaxRecords   RoadTaxRecord[]
   expenses         Expense[]
   documents        Document[]
+  fuelEntries      FuelEntry[]
 
   // Composite key that tenant-owned children reference. This is what lets PostgreSQL
   // reject a child row whose workspace disagrees with its parent's.
@@ -980,6 +991,55 @@ model SupportAccessGrant {
   @@index([adminUserId, expiresAt])
   @@index([workspaceId, expiresAt])
   @@map("support_access_grants")
+}
+
+
+model FuelEntry {
+  id          String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  vehicleId   String @map("vehicle_id") @db.Uuid
+
+  filledOn     DateTime      @map("filled_on") @db.Date
+  odometer     Int
+  odometerUnit DistanceUnit  @map("odometer_unit")
+
+  /// Three decimal places: fuel is sold to the hundredth of a litre and kWh readings are
+  /// finer still.
+  quantity     Decimal      @db.Decimal(10, 3)
+  quantityUnit QuantityUnit @map("quantity_unit")
+
+  totalAmount Decimal? @map("total_amount") @db.Decimal(14, 2)
+  /// Stored as given rather than derived: a receipt's unit price and its total do not
+  /// always reconcile exactly, and the receipt is the record.
+  unitPrice   Decimal? @map("unit_price") @db.Decimal(10, 4)
+  currency    String   @default("GBP") @db.Char(3)
+
+  fuelType FuelType? @map("fuel_type")
+
+  /// The distinction the whole economy calculation rests on (DECISIONS.md D-002).
+  isFullTank    Boolean @default(true) @map("is_full_tank")
+  isPartialFill Boolean @default(false) @map("is_partial_fill")
+  /// A fill after the tank ran dry breaks the chain: the distance since the last fill
+  /// cannot be attributed to the fuel bought.
+  missedFill    Boolean @default(false) @map("missed_fill")
+
+  stationName String? @map("station_name")
+  contactId   String? @map("contact_id") @db.Uuid
+  notes       String?
+
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  vehicle       Vehicle @relation(fields: [vehicleId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  createdByUser User?   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([id, workspaceId], map: "fuel_entries_id_workspace_uk")
+  @@index([workspaceId, vehicleId, filledOn(sort: Desc)])
+  @@index([workspaceId, vehicleId, odometer])
+  @@map("fuel_entries")
 }
 
 model AuditLog {

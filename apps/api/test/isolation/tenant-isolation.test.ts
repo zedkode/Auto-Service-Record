@@ -128,6 +128,7 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const a of [alice, bob].filter(Boolean)) {
     await prisma.supportAccessGrant.deleteMany({ where: { workspaceId: a.workspaceId } })
+    await prisma.fuelEntry.deleteMany({ where: { workspaceId: a.workspaceId } })
     await prisma.document.deleteMany({ where: { workspaceId: a.workspaceId } })
     await prisma.expense.deleteMany({ where: { workspaceId: a.workspaceId } })
     await prisma.maintenanceCompletion.deleteMany({ where: { workspaceId: a.workspaceId } })
@@ -267,6 +268,7 @@ describe('LAYER 2: the Prisma tenant extension scopes every operation', () => {
         'EmailMessage',
         'Expense',
         'ExpenseCategory',
+        'FuelEntry',
         'InspectionAdvisory',
         'InsurancePolicy',
         'MaintenanceCompletion',

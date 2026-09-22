@@ -407,6 +407,39 @@ missing field as "not visible to you", never as "not recorded".
 Deleting is always a soft delete: an inspection certificate number may be the only record
 its owner has.
 
+**Fuel and consumption (OWN-006).**
+
+```text
+GET    /workspaces/:ws/vehicles/:id/fuel          vehicle:read
+GET    /workspaces/:ws/vehicles/:id/fuel/economy  vehicle:read
+POST   /workspaces/:ws/vehicles/:id/fuel          fuel:write
+PATCH  /workspaces/:ws/fuel/:entryId              fuel:write
+DELETE /workspaces/:ws/fuel/:entryId              fuel:write, soft delete
+```
+
+`fuel:write` is held by DRIVER, who is the person actually filling up.
+
+**Consumption is measured tank to tank** (DECISIONS.md D-002). Only fills that filled the
+tank can bound an interval; a partial fill is accumulated into the interval ending at the
+next full one. `/economy` returns every measurable interval plus a distance-weighted
+average (D-074), and when there is no figure it returns **why**:
+
+```json
+{ "average": null, "unavailableReason": "ONE_FULL_FILL", "intervals": [], "skipped": [] }
+```
+
+`unavailableReason` is `NO_FILLS | ONE_FULL_FILL | NO_USABLE_INTERVAL`. Intervals that
+cannot be trusted are listed in `skipped` with a reason — `MISSED_FILL`, `NO_DISTANCE`,
+`MIXED_ENERGY`, `NO_QUANTITY` — rather than silently dropped.
+
+Electric vehicles record `KWH` and go through identical interval logic, reporting
+`kwhPer100Km` and `milesPerKwh`; litre figures come back `null` rather than invented.
+Litres and kWh are never summed in one interval (D-075).
+
+**A fill is also a mileage reading**: it writes an odometer entry with `source = FUEL` and
+updates the vehicle's current mileage (D-076). It also projects into the expense ledger,
+completing the set of cost sources.
+
 **Expenses (OWN-007/008).**
 
 ```text

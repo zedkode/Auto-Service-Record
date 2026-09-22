@@ -32,13 +32,21 @@ try {
   ok('period switch works')
   await page.screenshot({ path: '/tmp/shot-ws-expenses.png' })
 
-  console.log('\n[3] Workspace documents page')
+  console.log('\n[3] Workspace fuel page')
+  const fuelSoon = await page.locator('a[href="/fuel"] >> text=Soon').count()
+  ok(fuelSoon === 0 ? 'Fuel no longer labelled Soon' : 'STALE SOON LABEL')
+  await page.getByRole('link', { name: 'Fuel' }).first().click()
+  await page.waitForSelector('text=Consumption by vehicle', { timeout: 15000 })
+  ok('fuel page renders')
+  await page.screenshot({ path: '/tmp/shot-ws-fuel.png' })
+
+  console.log('\n[4] Workspace documents page')
   await page.getByRole('link', { name: 'Documents' }).first().click()
   await page.waitForSelector('text=All documents', { timeout: 15000 })
   ok('documents page renders')
   await page.screenshot({ path: '/tmp/shot-ws-documents.png' })
 
-  console.log('\n[4] Mobile width')
+  console.log('\n[5] Mobile width')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.waitForTimeout(400)
   const of = await page.evaluate(

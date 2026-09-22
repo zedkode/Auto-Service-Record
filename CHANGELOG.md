@@ -13,6 +13,21 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — Fuel, charging, and what your car actually returns
+- **Record every fill**, in litres, gallons or kWh, with what you paid and where.
+- **Real consumption, measured properly.** Figures are worked out between two full tanks,
+  which is the only way the number means anything. A part-fill still counts — it goes
+  towards the next full one.
+- **It tells you when it cannot tell you.** After one full tank you get an explanation
+  rather than a made-up figure, and an interval where you forgot to record a fill is left
+  out instead of being reported as a suspiciously thirsty week.
+- **Electric vehicles work the same way** in kWh per 100 km and miles per kWh.
+- **Filling up updates your mileage**, so distance-based servicing stays accurate without
+  entering the same number twice.
+- **Fuel now counts towards what a vehicle costs**, which completes the cost picture: the
+  ledger finally covers servicing, insurance, tax and fuel together.
+- **A workspace-wide Fuel page** comparing consumption across your vehicles.
+
 ### Security
 - Updated the email library to close three high-severity advisories in a component this
   platform uses directly. Two advisories remain in dependencies pulled in by the database

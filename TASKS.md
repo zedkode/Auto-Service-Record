@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 37 | 0 | 0 | 0 | 10 | 45 |
-| **Total** | **142** | **82** | **3** | **1** | **0** | **10** | **46** |
+| 3–12 — Later phases | 92 | 39 | 0 | 0 | 0 | 9 | 44 |
+| **Total** | **142** | **84** | **3** | **1** | **0** | **9** | **45** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -95,9 +95,16 @@ calls directly (7.0.9 → 10.0.10). The two that remain are transitive through P
 unreachable from this code, and documented with end conditions in
 `docs/security/audit-exceptions.md` rather than silently suppressed.
 
-**Next recommended task:** `WS-006` (per-member notification preferences) now that there
-are members to have them, `HARD-003` (document pipeline penetration review), or `OWN-006`
-(fuel) to finish `OWN-008`.
+`OWN-006` is `DONE` and **`OWN-008` is finally `DONE` with it**: fuel was the last cost
+source that did not reach the expense ledger, so a vehicle's total cost of ownership is
+now complete. Consumption is computed tank to tank by a pure engine with 23 unit tests;
+`RPT-003` (fuel economy trends) is unblocked.
+
+**Next recommended task:** `RPT-001` (cost aggregation) — `/expenses/summary` already
+groups by category and vehicle, so the report is largely presentation over an existing
+query, and every cost source now feeds it. Then `HARD-003` (document pipeline penetration
+review), `WS-006` (per-member notification preferences), or `VEH-003` (archival and soft
+delete), which is the last obvious gap in the vehicle lifecycle.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1250,9 +1257,9 @@ All are `BACKLOG` until their phase begins.
 | OWN-003 | Road tax and registration | DONE | HIGH | VEH-002, REM-002 
 | OWN-004 | Warranties, including part and repair warranties | BACKLOG | MEDIUM | VEH-002, REM-002 
 | OWN-005 | Tyre sets and installations | BACKLOG | MEDIUM | VEH-002 
-| OWN-006 | Fuel entries and consumption calculation | BACKLOG | HIGH | VEH-004 
+| OWN-006 | Fuel entries and consumption calculation | DONE | HIGH | VEH-004 
 | OWN-007 | Expenses and category management | DONE | HIGH | VEH-002 
-| OWN-008 | Expense projection from services, fuel, insurance and tax | PARTIAL | HIGH | OWN-007, SRV-003 
+| OWN-008 | Expense projection from services, fuel, insurance and tax | DONE | HIGH | OWN-007, SRV-003 
 | OWN-009 | Ownership module UI tabs | BACKLOG | HIGH | OWN-001…OWN-007 
 
 ### Phase 7 — Documents

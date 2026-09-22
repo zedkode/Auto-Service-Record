@@ -26,6 +26,7 @@ DELETE FROM odometer_entries  WHERE workspace_id IN (SELECT id FROM tw);
 -- Documents also hold the vehicle with ON DELETE RESTRICT. The objects behind them are
 -- left in MinIO: reaping orphaned objects is DOC-108 and is not built, so this is
 -- deliberately incomplete rather than silently pretending otherwise.
+DELETE FROM fuel_entries          WHERE workspace_id IN (SELECT id FROM tw);
 DELETE FROM documents             WHERE workspace_id IN (SELECT id FROM tw);
 DELETE FROM expenses              WHERE workspace_id IN (SELECT id FROM tw);
 DELETE FROM expense_categories    WHERE workspace_id IN (SELECT id FROM tw);
@@ -95,6 +96,7 @@ DELETE FROM maintenance_completions WHERE rule_id IN (SELECT id FROM maintenance
 DELETE FROM maintenance_rules   WHERE vehicle_id IN (SELECT id FROM tv);
 DELETE FROM service_record_parts WHERE service_record_id IN (SELECT id FROM service_records WHERE vehicle_id IN (SELECT id FROM tv));
 DELETE FROM service_records      WHERE vehicle_id IN (SELECT id FROM tv);
+DELETE FROM fuel_entries          WHERE vehicle_id IN (SELECT id FROM tv);
 DELETE FROM documents             WHERE vehicle_id IN (SELECT id FROM tv);
 DELETE FROM expenses              WHERE vehicle_id IN (SELECT id FROM tv);
 DELETE FROM inspection_advisories WHERE inspection_id IN (SELECT id FROM vehicle_inspections WHERE vehicle_id IN (SELECT id FROM tv));

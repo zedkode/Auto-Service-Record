@@ -26,6 +26,7 @@ import { MaintenancePanel } from '../components/MaintenancePanel.js'
 import { OwnershipPanel } from '../components/OwnershipPanel.js'
 import { ExpensesPanel } from '../components/ExpensesPanel.js'
 import { DocumentsPanel } from '../components/DocumentsPanel.js'
+import { FuelPanel } from '../components/FuelPanel.js'
 import { MAINTENANCE_TONE } from '../lib/maintenance-status.js'
 import { Timeline } from '../components/Timeline.js'
 import { IconGauge, IconPlus, IconWrench } from '../components/Icons.js'
@@ -46,7 +47,7 @@ const TABS: readonly TabDef[] = [
   { id: 'maintenance', label: 'Maintenance' },
   { id: 'ownership', label: 'Ownership' },
   { id: 'expenses', label: 'Expenses' },
-  { id: 'fuel', label: 'Fuel', phase: 'Phase 6' },
+  { id: 'fuel', label: 'Fuel' },
   { id: 'documents', label: 'Documents' },
 ]
 
@@ -185,6 +186,7 @@ export function VehicleDetailPage() {
       {tab === 'ownership' && <OwnershipPanel vehicleId={vehicleId} />}
       {tab === 'expenses' && <ExpensesPanel vehicleId={vehicleId} />}
       {tab === 'documents' && <DocumentsPanel vehicleId={vehicleId} />}
+      {tab === 'fuel' && <FuelPanel vehicleId={vehicleId} />}
       {![
         'overview',
         'timeline',
@@ -194,6 +196,7 @@ export function VehicleDetailPage() {
         'ownership',
         'expenses',
         'documents',
+        'fuel',
       ].includes(tab) && (
         <Card>
           <EmptyState

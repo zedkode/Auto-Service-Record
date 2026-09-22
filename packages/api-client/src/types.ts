@@ -529,3 +529,59 @@ export interface InvitationPreview {
   email: string
   expiresAt: string
 }
+
+// --- fuel (OWN-006) ---
+
+export type QuantityUnit = 'LITRES' | 'US_GALLONS' | 'IMP_GALLONS' | 'KWH'
+
+export interface FuelEntry {
+  id: string
+  vehicleId: string
+  filledOn: string | null
+  odometer: number
+  odometerUnit: DistanceUnit
+  quantity: number
+  quantityUnit: QuantityUnit
+  totalAmount: string | null
+  unitPrice: string | null
+  currency: string
+  fuelType: string | null
+  isFullTank: boolean
+  missedFill: boolean
+  stationName: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export interface EconomyInterval {
+  fromFillId: string
+  toFillId: string
+  fromOdometer: number
+  toOdometer: number
+  distanceMetres: number
+  quantity: number
+  electric: boolean
+  fillCount: number
+  litresPer100Km: number | null
+  kmPerLitre: number | null
+  milesPerImperialGallon: number | null
+  kwhPer100Km: number | null
+  milesPerKwh: number | null
+}
+
+export interface FuelEconomy {
+  intervals: EconomyInterval[]
+  skipped: Array<{ fromFillId: string; toFillId: string; reason: string }>
+  /** Null until two full fills exist. The reason says why (DECISIONS.md D-002). */
+  average:
+    | (Omit<
+        EconomyInterval,
+        'fromFillId' | 'toFillId' | 'fromOdometer' | 'toOdometer' | 'fillCount'
+      > & {
+        distanceMetres: number
+        quantity: number
+      })
+    | null
+  unavailableReason: 'NO_FILLS' | 'ONE_FULL_FILL' | 'NO_USABLE_INTERVAL' | null
+  fillCount: number
+}

@@ -42,7 +42,7 @@ const SECTIONS: Array<{ title?: string; items: NavItem[] }> = [
   {
     title: copy.ownership,
     items: [
-      { to: '/fuel', label: copy.fuel, icon: IconFuel, soon: true },
+      { to: '/fuel', label: copy.fuel, icon: IconFuel },
       {
         to: '/expenses',
         label: copy.expenses,

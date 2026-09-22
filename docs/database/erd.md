@@ -230,8 +230,8 @@ erDiagram
 ## 4. Ownership modules
 
 `vehicle_inspections`, `inspection_advisories`, `insurance_policies`, `road_tax_records`,
-`expense_categories` and `expenses` are built. `warranties`, `tyre_sets`,
-`tyre_installations` and `fuel_entries` are not yet.
+`expense_categories`, `expenses` and `fuel_entries` are built. `warranties`, `tyre_sets`
+and `tyre_installations` are not yet.
 
 `expenses` is the single cost surface: a service, policy or tax record projects itself
 into it through `source_type` / `source_record_id`, which are **unique together** so the

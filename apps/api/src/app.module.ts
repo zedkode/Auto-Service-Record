@@ -18,6 +18,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module.js'
 import { DocumentsModule } from './modules/documents/documents.module.js'
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module.js'
 import { SupportAccessModule } from './modules/support-access/support-access.module.js'
+import { FuelModule } from './modules/fuel/fuel.module.js'
 import { RemindersModule } from './modules/reminders/reminders.module.js'
 import { WebhooksModule } from './modules/webhooks/webhooks.module.js'
 import { AdminModule } from './modules/admin/admin.module.js'
@@ -58,6 +59,7 @@ class CoreModule {}
     AdminModule,
     AdminAuthModule,
     SupportAccessModule,
+    FuelModule,
   ],
   providers: [
     // Order matters twice over. Rate limiting runs FIRST, so a flood costs a Redis INCR

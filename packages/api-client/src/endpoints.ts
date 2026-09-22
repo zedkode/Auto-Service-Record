@@ -7,6 +7,8 @@ import type {
   DashboardData,
   DownloadLink,
   DueMaintenanceItem,
+  FuelEconomy,
+  FuelEntry,
   Expense,
   ExpenseCategory,
   ExpenseSummary,
@@ -265,6 +267,18 @@ export function createApi(client: ApiClient) {
         client.post<{ workspaceId: string; alreadyMember: boolean }>('/invitations/accept', {
           token,
         }),
+    },
+
+    fuel: {
+      list: (ws: string, vehicleId: string) =>
+        client.get<FuelEntry[]>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel`),
+      economy: (ws: string, vehicleId: string) =>
+        client.get<FuelEconomy>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel/economy`),
+      create: (ws: string, vehicleId: string, input: Record<string, unknown>) =>
+        client.post<FuelEntry>(`/workspaces/${ws}/vehicles/${vehicleId}/fuel`, input),
+      update: (ws: string, id: string, input: Record<string, unknown>) =>
+        client.patch<FuelEntry>(`/workspaces/${ws}/fuel/${id}`, input),
+      remove: (ws: string, id: string) => client.delete<void>(`/workspaces/${ws}/fuel/${id}`),
     },
 
     documents: {

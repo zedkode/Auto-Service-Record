@@ -26,6 +26,37 @@ referencing the old one.
 
 ---
 
+---
+
+## 2026-09-22 — Fuel and consumption
+
+### D-076 · A fill is also a mileage reading
+Recording a fill writes an `odometer_entries` row with `source = FUEL`, exactly as a
+service does. **Why:** filling up is the most frequent moment anyone notes their mileage,
+and asking for it twice would guarantee the two disagree. It also keeps distance-based
+maintenance accurate for people who never open the mileage tab.
+**Consequence:** a fill participates in odometer regression checks, so a typo in the
+mileage is caught at the pump rather than corrupting every economy figure after it.
+
+### D-075 · Litres and kWh are never added together
+An interval containing both liquid fuel and charging is excluded, with the reason
+`MIXED_ENERGY`. **Why:** a plug-in hybrid charged and fuelled between two full tanks
+consumed two different physical quantities. Adding them is meaningless; picking one
+understates the other; converting kWh to a "litre equivalent" invents an efficiency
+factor the platform has no basis for. **Alternatives:** reporting two separate figures for
+the same interval, which is defensible and needs a UI that can express it — worth doing
+when plug-in hybrids are a real user group. **Consequence:** PHEV owners who both charge
+and fuel will see intervals excluded, and the panel names the reason rather than silently
+dropping them.
+
+### D-074 · The average is weighted by distance, not by interval
+Total fuel over total distance, not the mean of the per-interval figures. **Why:** a
+100 km interval and a 900 km one are not equally informative about how the vehicle
+behaves, and averaging the figures lets one short motorway run distort a year of driving.
+The test asserts a case where the two methods differ by four litres per hundred.
+**Consequence:** the panel reports the distance and quantity behind the number, so the
+figure can be checked rather than believed.
+
 ## 2026-09-22 — Membership, roles and invitations
 
 ### D-073 · An invitation is bound to the address it was sent to
