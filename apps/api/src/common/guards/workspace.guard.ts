@@ -35,9 +35,12 @@ export class WorkspaceGuard implements CanActivate {
     const user = req.authUser
     if (!user) throw Errors.unauthenticated()
 
+    // Joined for the same reason as the session lookup: this is the second fixed cost on
+    // every workspace-scoped request, and two round trips here is one too many.
     const membership = await this.prisma.raw.workspaceMember.findFirst({
       where: { workspaceId, userId: user.id, status: 'ACTIVE' },
       include: { workspace: true },
+      relationLoadStrategy: 'join',
     })
 
     // Not a member, or the workspace is soft-deleted: indistinguishable from not existing.

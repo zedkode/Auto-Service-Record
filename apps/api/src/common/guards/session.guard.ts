@@ -29,9 +29,17 @@ export class SessionGuard implements CanActivate {
     const token = (req as { cookies?: Record<string, string> }).cookies?.[this.cookieName]
     if (!token) throw Errors.unauthenticated()
 
+    /**
+     * `relationLoadStrategy: 'join'` because this runs on EVERY authenticated request.
+     * Prisma's default strategy issues one query per level of `include`, so session →
+     * user → profile cost three round trips before any endpoint did its own work — the
+     * largest fixed cost in the application, paid on requests that then read a single
+     * table (HARD-004). One LATERAL join instead.
+     */
     const session = await this.prisma.raw.session.findUnique({
       where: { tokenHash: hashToken(token) },
       include: { user: { include: { profile: true } } },
+      relationLoadStrategy: 'join',
     })
 
     if (!session || session.revokedAt || session.expiresAt < new Date()) {

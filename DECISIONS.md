@@ -12,6 +12,55 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Query performance
+
+### D-094 · A misplaced index is corrected by a new migration, never by editing the old one
+`20260922080939` created `service_records_workspace_recent_idx` on `vehicle_inspections`
+by mistake — I inserted the `@@index` against the first matching model in the schema file
+rather than the intended one, and `VehicleInspection` comes first. `20260922081008` drops
+it and creates it on `service_records`. **Why not just edit the first migration:** it had
+already run, and a migration that has run anywhere is history. Editing it would leave this
+database correct and every other one silently different, which is the failure mode
+migrations exist to prevent. **How it was caught:** the benchmark. Recent-services improved
+only 1.99 → 1.06 ms while its two siblings dropped to 0.05 — the number disagreed with the
+intent, which is exactly what a measurement is for. Reading the schema diff would not have
+shown it; both indexes were present and both were spelled correctly.
+
+### D-093 · Three indexes for "recent across the workspace"
+Added `(workspace_id, <date> DESC, created_at DESC)` to `odometer_entries`,
+`service_records` and `vehicle_inspections`. **Why the existing indexes did not serve
+these:** each led with `(workspace_id, vehicle_id, <date>)`, which orders rows by vehicle
+and only then by date. A dashboard asking for the eight most recent events across the whole
+workspace therefore had to read every row in the workspace and sort them to take eight —
+5.33 ms for 8 rows at 39k rows, growing linearly with the table. With the index the same
+query is 0.03 ms and stops after eight rows. **Consequence:** three more indexes to
+maintain on write-heavy tables. Justified because all three tables are append-mostly and
+the dashboard is the first screen of every session.
+
+### D-092 · The dashboard reads its vehicles once
+`dashboard()` loads the workspace's vehicles, then resolves every list's vehicle name from
+an in-memory map instead of `include: { vehicle: … }` on each query. **Why:** Prisma loads
+an included relation with a separate round trip, and this endpoint has seven such lists —
+it was re-reading the same two rows seven times to learn what it had already loaded. 21
+queries became 11. **What was deliberately left alone:** the relation *filters* in the
+`where` clauses (`vehicle: { deletedAt: null, status: 'ACTIVE' }`). Those compile into
+joins inside the same statement and cost nothing extra; removing them would have moved a
+correctness rule out of the database and into application code.
+
+### D-091 · The auth guards load their relations with a join
+`SessionGuard` and `WorkspaceGuard` pass `relationLoadStrategy: 'join'`, enabled by the
+`relationJoins` preview feature. **Why:** these run on every authenticated request, and
+Prisma's default strategy issues one query per level of `include` — session → user →
+profile, then member → workspace, five round trips before any endpoint began its own work.
+On a plain list endpoint that was five of the six queries in the request. Now two.
+**Why this is worth a preview feature:** the cost is paid by literally every request, and
+the alternative — hand-written SQL in a guard, or caching sessions outside Postgres — trades
+a well-understood query plan for a cache invalidation problem on the tenant-isolation path.
+**Consequence:** `previewFeatures = ["relationJoins"]` in the generator; if it is ever
+removed, the guards keep working and simply become slower again.
+
+---
+
 ## 2026-09-22 — Fleet rollups
 
 ### D-090 · The demo garage carries MOT, insurance and tax

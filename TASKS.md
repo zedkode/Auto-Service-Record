@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 46 | 0 | 0 | 0 | 9 | 37 |
-| **Total** | **142** | **91** | **3** | **1** | **0** | **9** | **38** |
+| 3–12 — Later phases | 92 | 47 | 0 | 0 | 0 | 9 | 36 |
+| **Total** | **142** | **92** | **3** | **1** | **0** | **9** | **37** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -183,11 +183,45 @@ depending on database state they did not own. `verify-ui-service.mjs` failed onc
 same sweep and passed alone — fallout from `verify-ownership-ui.mjs` failing mid-run and
 leaving residue behind, which is the second-order cost of that coupling.
 
-**Next recommended task:** `HARD-004` (query performance and N+1 sweep) — the demo data
-now holds ~110 fuel rows and the fleet report issues six parallel queries, which is the
-first workload in this repository where a query plan is worth reading. After that,
-`EXP-001` (CSV/JSON export) is the obvious follow-on from the reports, and `OWN-004`
-(warranties) reuses the ownership shape already proven three times.
+`HARD-004` is `DONE`, and it is worth recording that N+1 was not where reading the code
+would have suggested. Two scripts do the work: `scripts/audit-queries.mjs` counts the
+statements each endpoint actually issues, by shape, against the running stack; and
+`scripts/audit-plans.mjs` builds a throwaway 200-vehicle, 155k-row workspace and runs
+`EXPLAIN ANALYZE` on the query shapes the API issues, because a plan measured at two
+vehicles says nothing.
+
+Three findings, all measured before and after:
+
+| | before | after |
+| --- | --- | --- |
+| plain list endpoint (`GET /vehicles`) | 6 queries | 3 |
+| `GET /dashboard` | 21 queries | 11 |
+| `GET /reports/fleet` | 12 queries | 8 |
+| recent odometer across a 39k-row table | 5.33 ms | 0.03 ms |
+| recent services | 1.99 ms | 0.05 ms |
+| cost report odometer range | 4.34 ms | 1.23 ms |
+
+The biggest single win was the auth chain: five of the six queries on a plain list endpoint
+were session → user → profile → member → workspace, because Prisma issues one query per
+`include` level. `relationLoadStrategy: 'join'` makes that two (D-091). The dashboard was
+re-reading the same vehicles seven times for names it had already loaded (D-092). And three
+"most recent across the workspace" queries had no index that could order them, so each read
+the whole workspace and sorted to take eight rows (D-093).
+
+**No sequential scan appeared on any table at 155k rows** — index coverage was otherwise
+sound, which is the useful negative result and what `HARD-005` (index review) mostly needed.
+
+**A mistake worth keeping in the record:** the first migration created one of the three
+indexes on the wrong table, and the schema diff looked correct. The benchmark caught it —
+recent-services improved 1.99 → 1.06 ms while its siblings hit 0.05, and that disagreement
+was the only signal. Corrected by a second migration rather than by editing the first
+(D-094).
+
+**Next recommended task:** `EXP-001` (async CSV/JSON export), the obvious follow-on now
+that the reports are complete, then `OWN-004` (warranties), which reuses an ownership shape
+already proven three times. `HARD-005` (index review against real query plans) is now
+largely evidenced by `audit-plans.mjs` and could be closed by extending that script's query
+list to the remaining endpoints.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1410,7 +1444,7 @@ All are `BACKLOG` until their phase begins.
 | HARD-001 | Full security review against `SECURITY.md` | BACKLOG | CRITICAL | all 
 | HARD-002 | Authorisation and isolation audit | BACKLOG | CRITICAL | SEC-007 
 | HARD-003 | Document pipeline penetration review | DONE | CRITICAL | DOC-104 
-| HARD-004 | Query performance and N+1 sweep | BACKLOG | HIGH | all 
+| HARD-004 | Query performance and N+1 sweep | DONE | HIGH | all 
 | HARD-005 | Index review against real query plans | BACKLOG | HIGH | HARD-004 
 | HARD-006 | Backup **restore** rehearsal | BACKLOG | CRITICAL | — 
 | HARD-007 | Observability and alerting completion | BACKLOG | HIGH | CORE-006 

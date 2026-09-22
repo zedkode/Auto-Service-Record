@@ -62,6 +62,25 @@ export class WorkspacesService {
     })
     const activeVehicles = vehicles.filter((v: Vehicle) => v.status === 'ACTIVE')
 
+    /**
+     * Every list below is about these same vehicles, so their names come from here rather
+     * than from an `include` on each query. Prisma loads an included relation with a second
+     * round trip, and this endpoint has seven such lists — it was re-reading the same two
+     * rows seven times to learn what it already knew (HARD-004). The relation filters in
+     * the `where` clauses stay: those become joins inside one statement and cost nothing
+     * extra.
+     */
+    const vehicleById = new Map(vehicles.map((v: Vehicle) => [v.id, v]))
+    const vehicleOf = (vehicleId: string) =>
+      vehicleById.get(vehicleId) ?? {
+        // A row whose vehicle is filtered out of `vehicles` cannot reach these lists, but
+        // the fallback keeps a missing name from throwing on the first screen a user sees.
+        id: vehicleId,
+        manufacturer: 'Unknown',
+        model: 'vehicle',
+        registrationNumber: null,
+      }
+
     const staleThreshold = new Date()
     staleThreshold.setUTCDate(staleThreshold.getUTCDate() - 45)
 
@@ -80,13 +99,6 @@ export class WorkspacesService {
     }> = []
 
     const nameOf = (v: { manufacturer: string; model: string }) => `${v.manufacturer} ${v.model}`
-    const vehicleSelect = {
-      id: true,
-      manufacturer: true,
-      model: true,
-      registrationNumber: true,
-    } as const
-
     // --- maintenance that is due or overdue ---
     const dueRules = await db.maintenanceRule.findMany({
       where: {
@@ -94,14 +106,14 @@ export class WorkspacesService {
         status: { in: ['DUE_SOON', 'DUE', 'OVERDUE'] },
         vehicle: { deletedAt: null, status: 'ACTIVE' },
       },
-      include: { vehicle: { select: vehicleSelect } },
       orderBy: { status: 'desc' },
     })
     for (const rule of dueRules) {
+      const vehicle = vehicleOf(rule.vehicleId)
       attention.push({
         vehicleId: rule.vehicleId,
-        vehicleName: nameOf(rule.vehicle),
-        registrationNumber: rule.vehicle.registrationNumber,
+        vehicleName: nameOf(vehicle),
+        registrationNumber: vehicle.registrationNumber,
         severity: rule.status === 'OVERDUE' ? 'OVERDUE' : 'DUE_SOON',
         title: rule.name,
         detail: rule.status === 'OVERDUE' ? 'Overdue for service' : 'Due for service soon',
@@ -122,17 +134,14 @@ export class WorkspacesService {
     const [inspections, policies, taxes] = await Promise.all([
       db.vehicleInspection.findMany({
         where: expiringWhere,
-        include: { vehicle: { select: vehicleSelect } },
         orderBy: { expiresOn: 'desc' },
       }),
       db.insurancePolicy.findMany({
         where: expiringWhere,
-        include: { vehicle: { select: vehicleSelect } },
         orderBy: { expiresOn: 'desc' },
       }),
       db.roadTaxRecord.findMany({
         where: expiringWhere,
-        include: { vehicle: { select: vehicleSelect } },
         orderBy: { expiresOn: 'desc' },
       }),
     ])
@@ -155,20 +164,14 @@ export class WorkspacesService {
     }
 
     const daysUntil = (d: Date) => Math.round((d.getTime() - today.getTime()) / 86_400_000)
-    const expiryItem = (
-      row: {
-        vehicleId: string
-        expiresOn: Date | null
-        vehicle: { manufacturer: string; model: string; registrationNumber: string | null }
-      },
-      label: string,
-    ) => {
+    const expiryItem = (row: { vehicleId: string; expiresOn: Date | null }, label: string) => {
       const remaining = daysUntil(row.expiresOn!)
       const overdue = remaining < 0
+      const vehicle = vehicleOf(row.vehicleId)
       return {
         vehicleId: row.vehicleId,
-        vehicleName: nameOf(row.vehicle),
-        registrationNumber: row.vehicle.registrationNumber,
+        vehicleName: nameOf(vehicle),
+        registrationNumber: vehicle.registrationNumber,
         severity: (overdue ? 'OVERDUE' : 'DUE_SOON') as 'OVERDUE' | 'DUE_SOON',
         title: `${label} ${overdue ? 'has expired' : 'expires soon'}`,
         detail: overdue
@@ -210,19 +213,16 @@ export class WorkspacesService {
       db.odometerEntry.findMany({
         orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
         take: 8,
-        include: { vehicle: { select: { id: true, manufacturer: true, model: true } } },
       }),
       db.serviceRecord.findMany({
         where: { deletedAt: null },
         orderBy: [{ performedOn: 'desc' }, { createdAt: 'desc' }],
         take: 8,
-        include: { vehicle: { select: { id: true, manufacturer: true, model: true } } },
       }),
       db.vehicleInspection.findMany({
         where: { deletedAt: null },
         orderBy: [{ performedOn: 'desc' }, { createdAt: 'desc' }],
         take: 8,
-        include: { vehicle: { select: { id: true, manufacturer: true, model: true } } },
       }),
     ])
 
@@ -232,24 +232,24 @@ export class WorkspacesService {
         type: 'ODOMETER' as const,
         occurredOn: e.recordedOn.toISOString().slice(0, 10),
         title: `Mileage updated to ${e.value.toLocaleString()} ${e.unit === 'MILES' ? 'mi' : 'km'}`,
-        vehicleId: e.vehicle.id,
-        vehicleName: nameOf(e.vehicle),
+        vehicleId: e.vehicleId,
+        vehicleName: nameOf(vehicleOf(e.vehicleId)),
       })),
       ...recentServices.map((r) => ({
         id: r.id,
         type: 'SERVICE' as const,
         occurredOn: r.performedOn.toISOString().slice(0, 10),
         title: r.title,
-        vehicleId: r.vehicle.id,
-        vehicleName: nameOf(r.vehicle),
+        vehicleId: r.vehicleId,
+        vehicleName: nameOf(vehicleOf(r.vehicleId)),
       })),
       ...recentInspections.map((r) => ({
         id: r.id,
         type: 'INSPECTION' as const,
         occurredOn: r.performedOn.toISOString().slice(0, 10),
         title: `${r.inspectionType === 'OTHER' ? 'Inspection' : r.inspectionType} — ${r.result.replace(/_/g, ' ').toLowerCase()}`,
-        vehicleId: r.vehicle.id,
-        vehicleName: nameOf(r.vehicle),
+        vehicleId: r.vehicleId,
+        vehicleName: nameOf(vehicleOf(r.vehicleId)),
       })),
     ]
       // Ordered by when the event HAPPENED, not when the row was inserted. Back-dated

@@ -11,6 +11,11 @@
 
 generator client {
   provider = "prisma-client-js"
+
+  // `relationJoins` lets a query with `include` be served by one LATERAL join instead of
+  // one round trip per relation level. Enabled for the auth guards, which run on every
+  // request and paid three round trips for session -> user -> profile (HARD-004).
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -647,6 +652,12 @@ model OdometerEntry {
 
   @@index([vehicleId, recordedOn(sort: Desc), value(sort: Desc)])
   @@index([workspaceId, vehicleId])
+  /// Workspace-wide "most recent readings", which the dashboard asks for on every load.
+  /// The per-vehicle index above cannot serve it: with `vehicle_id` in second position the
+  /// rows come out grouped by vehicle, not by date, so Postgres read every row in the
+  /// workspace and sorted them to take eight — 5.3 ms for 8 rows at 39k rows, growing
+  /// linearly with the table (HARD-004).
+  @@index([workspaceId, recordedOn(sort: Desc), createdAt(sort: Desc)], map: "odometer_entries_workspace_recent_idx")
   @@map("odometer_entries")
 }
 
@@ -689,6 +700,8 @@ model VehicleInspection {
 
   @@unique([id, workspaceId], map: "vehicle_inspections_id_workspace_uk")
   @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
+  /// Same shape again: the dashboard reads the newest inspections across the workspace.
+  @@index([workspaceId, performedOn(sort: Desc), createdAt(sort: Desc)], map: "vehicle_inspections_workspace_recent_idx")
   /// Partial index: the reminder scan only ever asks for rows that expire.
   @@index([expiresOn], map: "vehicle_inspections_expires_on_idx")
   @@map("vehicle_inspections")
@@ -1153,6 +1166,9 @@ model ServiceRecord {
 
   @@unique([id, workspaceId], map: "service_records_id_workspace_uk")
   @@index([workspaceId, vehicleId, performedOn(sort: Desc)])
+  /// Same shape as the odometer index: the dashboard reads the newest services across
+  /// the whole workspace, which the per-vehicle index cannot order.
+  @@index([workspaceId, performedOn(sort: Desc), createdAt(sort: Desc)], map: "service_records_workspace_recent_idx")
   @@index([workspaceId, categoryId])
   @@map("service_records")
 }

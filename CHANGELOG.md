@@ -13,6 +13,15 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Changed — Faster, particularly the first screen
+- **Every page does less work to load.** Signing in used to cost five database lookups
+  before a page could even begin fetching its own data; it now costs two.
+- **The overview loads roughly twice as quickly**, because it no longer looks up the same
+  vehicles seven times over to find names it already had.
+- **Recent activity stays fast as your history grows.** On a workspace with years of
+  records, the "what happened lately" lists were reading everything and sorting it to show
+  eight rows. They now stop after eight.
+
 ### Added — More than one vehicle, seen as a fleet
 - **Every vehicle side by side** on the reports page: what each one cost over the period,
   how far it went, what that works out at per mile and per year, sorted with the most
