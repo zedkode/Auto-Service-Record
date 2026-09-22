@@ -14,6 +14,7 @@ import {
   formatMoney,
 } from '@autoservices/ui'
 import { ApiError, type CostReport } from '@autoservices/api-client'
+import { FleetTable } from '../components/FleetTable.js'
 import { api } from '../lib/api.js'
 import { useSession } from '../lib/use-session.js'
 import { PageHeader } from '../components/PageHeader.js'
@@ -62,6 +63,16 @@ export function ReportsPage() {
   const report = useQuery({
     queryKey: ['report-costs', workspace.id, from, to, vehicleId],
     queryFn: () => api.reports.costs(workspace.id, { from, to, vehicleId: vehicleId || undefined }),
+  })
+  /**
+   * The fleet table answers a different question from the cost report — which vehicle,
+   * rather than how much — so it is fetched separately and only when looking at the whole
+   * workspace. Filtered to one vehicle, a one-row comparison table says nothing.
+   */
+  const fleet = useQuery({
+    queryKey: ['report-fleet', workspace.id, from, to],
+    queryFn: () => api.reports.fleet(workspace.id, { from, to }),
+    enabled: vehicleId === '',
   })
 
   return (
@@ -122,13 +133,39 @@ export function ReportsPage() {
           />
         </Card>
       ) : (
-        <ReportBody report={report.data} currency={workspace.defaultCurrency} />
+        <>
+          <ReportBody
+            report={report.data}
+            currency={workspace.defaultCurrency}
+            showVehicleBreakdown={vehicleId !== '' || !fleet.data}
+          />
+          {/* `enabled` stops the refetch but keeps the last result cached, so the filter
+              has to gate the render too — otherwise a stale all-vehicles table sits under
+              a report that has been narrowed to one. */}
+          {vehicleId === '' && fleet.data && (
+            <FleetTable report={fleet.data} currency={workspace.defaultCurrency} />
+          )}
+        </>
       )}
     </>
   )
 }
 
-function ReportBody({ report, currency }: { report: CostReport; currency: string }) {
+function ReportBody({
+  report,
+  currency,
+  showVehicleBreakdown,
+}: {
+  report: CostReport
+  currency: string
+  /**
+   * False when the fleet table is on the page. That table is a strict superset of this
+   * breakdown — the same totals and shares, plus distance, cost per mile and what is about
+   * to expire — and two adjacent cards both headed "By vehicle" is a worse page than
+   * either one alone.
+   */
+  showVehicleBreakdown: boolean
+}) {
   const money = (v: string | null) => formatMoney(v, report.currency ?? currency)
 
   return (
@@ -208,7 +245,9 @@ function ReportBody({ report, currency }: { report: CostReport; currency: string
         </Card>
       </div>
 
-      <div className="mt-6 grid items-start gap-6 xl:grid-cols-2">
+      <div
+        className={`mt-6 grid items-start gap-6 ${showVehicleBreakdown ? 'xl:grid-cols-2' : ''}`}
+      >
         <Breakdown
           title="By category"
           rows={report.byCategory.map((c) => ({
@@ -221,19 +260,21 @@ function ReportBody({ report, currency }: { report: CostReport; currency: string
           money={money}
           mixed={report.mixedCurrencies}
         />
-        <Breakdown
-          title="By vehicle"
-          rows={report.byVehicle.map((v) => ({
-            key: v.vehicleId ?? 'workspace',
-            name: v.name,
-            total: v.total,
-            share: v.share,
-            count: v.count,
-            href: v.vehicleId ? `/vehicles/${v.vehicleId}?tab=expenses` : undefined,
-          }))}
-          money={money}
-          mixed={report.mixedCurrencies}
-        />
+        {showVehicleBreakdown && (
+          <Breakdown
+            title="By vehicle"
+            rows={report.byVehicle.map((v) => ({
+              key: v.vehicleId ?? 'workspace',
+              name: v.name,
+              total: v.total,
+              share: v.share,
+              count: v.count,
+              href: v.vehicleId ? `/vehicles/${v.vehicleId}?tab=expenses` : undefined,
+            }))}
+            money={money}
+            mixed={report.mixedCurrencies}
+          />
+        )}
       </div>
 
       <MonthlyCard report={report} money={money} />

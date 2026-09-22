@@ -62,16 +62,31 @@ const plusDays = (n) => {
  */
 const dlg = () => page.locator('dialog[open]')
 
+// Unique per run: re-running must not trip the duplicate-registration guard.
+const RUN = Date.now().toString().slice(-5)
+const MODEL = `Ownership ${RUN}`
+const REG = `OW${RUN.slice(0, 2)} ${RUN.slice(2)}`
+
 try {
   console.log('\n[1] Sign in and open the Ownership tab')
   await page.goto(D, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /Sign in as andrei/ }).click()
   await page.waitForSelector('text=Your vehicles', { timeout: 15000 })
-  await page
-    .getByRole('link', { name: /Ford Mondeo/ })
-    .first()
-    .click()
-  await page.waitForSelector('h1:has-text("Ford Mondeo")', { timeout: 15000 })
+  /**
+   * A vehicle of this script's own. Step [2] asserts an untracked empty state and step [4]
+   * asserts that the MOT recorded here is the current one — both false on a seeded vehicle
+   * now that the demo garage ships with its own MOT, insurance and tax (DECISIONS.md
+   * D-090). A verification that depends on demo data being empty breaks the moment the
+   * demo data improves.
+   */
+  await page.getByRole('link', { name: 'Add vehicle' }).first().click()
+  await page.waitForSelector('text=Add a vehicle', { timeout: 15000 })
+  await page.fill('input[name="manufacturer"]', 'Probe')
+  await page.fill('input[name="model"]', MODEL)
+  await page.fill('input[name="registrationNumber"]', REG)
+  await page.fill('input[name="currentOdometer"]', '132000')
+  await page.click('button[type="submit"]')
+  await page.waitForSelector(`h1:has-text("Probe ${MODEL}")`, { timeout: 15000 })
   await page.getByRole('tab', { name: 'Ownership' }).click()
   await page.waitForSelector('text=Inspection', { timeout: 15000 })
   ok('ownership tab rendered')
@@ -161,5 +176,22 @@ try {
   sql(`DELETE FROM expenses WHERE source_type = 'INSURANCE' AND source_record_id IN
         (SELECT id FROM insurance_policies WHERE provider_name = 'UI Test Insurer');`)
   sql(`DELETE FROM insurance_policies WHERE provider_name = 'UI Test Insurer';`)
+  // And the probe vehicle itself, so the demo garage is exactly as it was found.
+  const vq = `(SELECT id FROM vehicles WHERE registration_number='${REG}')`
+  sql(`DELETE FROM inspection_advisories WHERE inspection_id IN
+        (SELECT id FROM vehicle_inspections WHERE vehicle_id IN ${vq});`)
+  for (const t of [
+    'expenses',
+    'odometer_entries',
+    'fuel_entries',
+    'reminders',
+    'vehicle_inspections',
+    'insurance_policies',
+    'road_tax_records',
+    'audit_logs',
+  ]) {
+    sql(`DELETE FROM ${t} WHERE ${t === 'audit_logs' ? 'resource_id' : 'vehicle_id'} IN ${vq};`)
+  }
+  sql(`DELETE FROM vehicles WHERE registration_number='${REG}';`)
   await browser.close()
 }

@@ -13,6 +13,19 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — More than one vehicle, seen as a fleet
+- **Every vehicle side by side** on the reports page: what each one cost over the period,
+  how far it went, what that works out at per mile and per year, sorted with the most
+  expensive first.
+- **What lapses next, per vehicle** — MOT, insurance or road tax, whichever comes first,
+  with anything expired or due within 30 days called out at the top.
+- **"Nothing recorded" is never shown as a pass.** A vehicle with no MOT or insurance dates
+  says so plainly, because that is something to chase rather than tick off.
+- **Costs that belong to the whole workspace stay separate** instead of being shared out
+  across your vehicles, which would have quietly changed every vehicle's cost per mile.
+- The demo garage now comes with MOT, insurance and tax records — including one due soon —
+  so the renewal tracking is visible without entering a year of paperwork first.
+
 ### Added — Is your car getting worse?
 - **Consumption month by month**, with a plain sentence above it: using 9% more fuel than
   three months ago, or steady, or improving — and which months were compared.

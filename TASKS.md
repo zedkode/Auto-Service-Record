@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 45 | 0 | 0 | 0 | 9 | 38 |
-| **Total** | **142** | **90** | **3** | **1** | **0** | **9** | **39** |
+| 3–12 — Later phases | 92 | 46 | 0 | 0 | 0 | 9 | 37 |
+| **Total** | **142** | **91** | **3** | **1** | **0** | **9** | **38** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -158,10 +158,36 @@ were removed rather than patched: `verify-final.mjs` now deletes the user it cre
 `verify-fuel-ui.mjs` creates a vehicle of its own instead of depending on demo data being
 sparse. Sweep now: 31/31.
 
-**Next recommended task:** `RPT-004` (workspace and fleet rollups), which reuses the cost
-engine across vehicles, or `HARD-004` (query performance and N+1 sweep) — the fill history
-now has ~110 seeded rows, which is the first dataset in this repository big enough for a
-query plan to be worth reading.
+`RPT-004` is `DONE`, which closes the reporting phase apart from exports.
+`GET /reports/fleet` reads the workspace as a fleet: one row per vehicle with its cost,
+distance, cost per mile, cost per year and what lapses next, sorted most expensive first.
+`computeFleetReport` reuses the cost engine's helpers rather than restating its rules, so
+the fleet column and the single-vehicle report cannot drift; a test asserts they agree to
+the penny. Compliance is read from the inspection, policy and tax records — not from
+`reminders`, which can be dismissed or snoozed without renewing anything — and `UNKNOWN`
+is a distinct state from `OK` (D-088). Workspace costs are held in their own column rather
+than apportioned across vehicles (D-089). 17 engine tests, 7 integration tests, a 9-step
+live verification.
+
+**One UI decision worth noting:** the fleet table supersedes the old "By vehicle"
+breakdown, which it strictly contains. Two adjacent cards with the same heading, one a
+subset of the other, was worse than either alone — so the breakdown now appears only when
+the report is filtered to a single vehicle, where a comparison table would have one row.
+
+**Three more verification scripts were decoupled from the seed.** `verify-ui.mjs` was
+leaving a vehicle in the demo garage on every run; `verify-ownership-ui.mjs` asserted an
+untracked empty state and assumed its own MOT was the only one on the demo Mondeo, both
+false once the garage gained obligations (D-090). Each now builds a vehicle of its own and
+removes it afterwards. That is four scripts this session whose real fault was the same one:
+depending on database state they did not own. `verify-ui-service.mjs` failed once in the
+same sweep and passed alone — fallout from `verify-ownership-ui.mjs` failing mid-run and
+leaving residue behind, which is the second-order cost of that coupling.
+
+**Next recommended task:** `HARD-004` (query performance and N+1 sweep) — the demo data
+now holds ~110 fuel rows and the fleet report issues six parallel queries, which is the
+first workload in this repository where a query plan is worth reading. After that,
+`EXP-001` (CSV/JSON export) is the obvious follow-on from the reports, and `OWN-004`
+(warranties) reuses the ownership shape already proven three times.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1360,7 +1386,7 @@ All are `BACKLOG` until their phase begins.
 | RPT-001 | Cost aggregation by category, vehicle and period | DONE | HIGH | OWN-008 
 | RPT-002 | Ownership cost and cost per distance | DONE | HIGH | RPT-001 
 | RPT-003 | Fuel economy trends | DONE | MEDIUM | OWN-006 
-| RPT-004 | Workspace and fleet rollups | BACKLOG | MEDIUM | RPT-001 
+| RPT-004 | Workspace and fleet rollups | DONE | MEDIUM | RPT-001 
 | RPT-005 | Report UI with date-range filtering | DONE | HIGH | RPT-001 
 | EXP-001 | Async export jobs (CSV, JSON) | BACKLOG | MEDIUM | RPT-001 
 | EXP-002 | PDF vehicle history export | BACKLOG | MEDIUM | EXP-001 

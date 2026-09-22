@@ -9,6 +9,7 @@ import type {
   DownloadLink,
   DueMaintenanceItem,
   FuelEconomy,
+  FleetReport,
   FuelTrend,
   FuelEntry,
   Expense,
@@ -295,6 +296,13 @@ export function createApi(client: ApiClient) {
         if (params.vehicleId) q.set('vehicleId', params.vehicleId)
         const qs = q.toString()
         return client.get<CostReport>(`/workspaces/${ws}/reports/costs${qs ? `?${qs}` : ''}`)
+      },
+      fleet: (ws: string, params: { from?: string; to?: string } = {}) => {
+        const q = new URLSearchParams()
+        if (params.from) q.set('from', params.from)
+        if (params.to) q.set('to', params.to)
+        const qs = q.toString()
+        return client.get<FleetReport>(`/workspaces/${ws}/reports/fleet${qs ? `?${qs}` : ''}`)
       },
     },
 

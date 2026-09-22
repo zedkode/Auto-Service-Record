@@ -586,6 +586,56 @@ export interface FuelEconomy {
   fillCount: number
 }
 
+/** RPT-004 — the workspace as a fleet: one row per vehicle, plus the total. */
+export interface FleetUnavailable {
+  perMile: string | null
+  perKilometre: string | null
+  unavailableReason: string | null
+}
+
+export interface FleetVehicleRow {
+  vehicleId: string
+  displayName: string
+  registrationNumber: string | null
+  status: string
+  total: string
+  count: number
+  share: number
+  distance: {
+    metres: number | null
+    miles: number | null
+    kilometres: number | null
+    unavailableReason: string | null
+  }
+  costPerDistance: FleetUnavailable
+  costPerYear: { amount: string | null; projected: boolean; unavailableReason: string | null }
+  compliance: {
+    state: 'EXPIRED' | 'DUE_SOON' | 'OK' | 'UNKNOWN'
+    kind: 'INSPECTION' | 'INSURANCE' | 'TAX' | null
+    expiresOn: string | null
+    daysRemaining: number | null
+  }
+}
+
+export interface FleetReport {
+  from: string
+  to: string
+  days: number
+  currency: string | null
+  mixedCurrencies: boolean
+  fleet: {
+    vehicleCount: number
+    total: string
+    entries: number
+    distance: FleetVehicleRow['distance']
+    costPerDistance: FleetUnavailable
+    costPerYear: FleetVehicleRow['costPerYear']
+    needingAttention: number
+  }
+  vehicles: FleetVehicleRow[]
+  unassigned: { total: string; count: number }
+}
+
 /** RPT-003 — monthly economy, and which way it is going. */
 export interface FuelTrendPoint {
   period: string

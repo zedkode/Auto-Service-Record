@@ -5,6 +5,7 @@
  * This is verification, not a test suite; the Playwright E2E suite lands in Phase 2.
  */
 import { chromium } from 'playwright'
+import { execFileSync } from 'node:child_process'
 
 const DASH = process.env.DASH_URL ?? 'http://localhost:3101'
 // Unique per run: re-running must not trip the duplicate-registration guard, which is
@@ -15,6 +16,23 @@ const consoleErrors = []
 const pageErrors = []
 
 const log = (s) => console.log(s)
+const sql = (q) =>
+  execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'autoservices-postgres',
+      'psql',
+      '-U',
+      'autoservices',
+      '-d',
+      'autoservices',
+      '-tAc',
+      q,
+    ],
+    { encoding: 'utf8' },
+  ).trim()
 const ok = (s) => console.log(`  ✓ ${s}`)
 
 /**
@@ -159,4 +177,16 @@ try {
   process.exitCode = 1
 } finally {
   await browser.close()
+  /**
+   * Remove the vehicle this run added to the SEEDED demo garage. Without this the demo
+   * workspace gained a Volvo on every run, which quietly changes what the reports, the
+   * fleet table and the dashboard show to the next person who opens them.
+   */
+  const vq = `(SELECT id FROM vehicles WHERE registration_number='${REG}')`
+  sql(`DELETE FROM expenses WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM odometer_entries WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM fuel_entries WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM reminders WHERE vehicle_id IN ${vq};`)
+  sql(`DELETE FROM audit_logs WHERE resource_id IN ${vq};`)
+  sql(`DELETE FROM vehicles WHERE registration_number='${REG}';`)
 }

@@ -12,6 +12,43 @@ referencing the old one.
 
 ---
 
+## 2026-09-22 — Fleet rollups
+
+### D-090 · The demo garage carries MOT, insurance and tax
+`seedObligations` gives each demo vehicle a current MOT, a policy and a tax period — plus
+one expired MOT from the year before, and a tax date inside the 30-day window on one
+vehicle. **Why:** without them the fleet table can only say "nothing recorded" against
+every row, the reminder engine has nothing to fire on, and three shipped features are
+invisible to anyone evaluating the product. The deliberately imperfect data matters as
+much as the good data: a compliance view that is entirely green demonstrates nothing about
+what it does when something is due, and the superseded MOT is what proves the fleet report
+reads the *current* expiry rather than the oldest row on file. Same idempotent-pass shape
+as [D-087], for the same reason.
+
+### D-089 · A cost that belongs to no vehicle is never spread across the fleet
+Workspace-level expenses are reported in their own `unassigned` column and excluded from
+every per-vehicle figure. **Why:** apportioning them would require a rule — equally? by
+mileage? by spend? — and every one of those rules is invented. Worse, the choice would
+quietly change every vehicle's cost per mile, which is the number the table exists to make
+comparable. **Consequence:** the per-vehicle totals do not sum to the fleet total whenever
+unassigned costs exist, so the UI states the difference explicitly instead of letting a
+reader discover it by adding the column up.
+
+### D-088 · Compliance is read from the records, and UNKNOWN is not OK
+The fleet report builds each vehicle's compliance from the latest `vehicle_inspections`,
+`insurance_policies` and `road_tax_records` row of each kind, not from `reminders`.
+**Why reminders are the wrong source:** a reminder can be dismissed, snoozed, cancelled by
+a status change (D-083) or simply not generated yet, and none of those things renews an
+MOT. The obligation records are the fact; reminders are a notification about it.
+**Why the latest row per kind:** a van with five years of MOT history has five expiry
+dates, four of them long past, and taking the soonest of all of them would report every
+well-maintained vehicle as expired. **Why `UNKNOWN` is a distinct state:** a vehicle with
+nothing recorded must never render as a green tick. It means nobody has told us, which is
+a thing a fleet manager needs to chase, not tick off. The 30-day `DUE_SOON` window matches
+the reminder engine's lead time deliberately, so the table and the email never disagree.
+
+---
+
 ## 2026-09-22 — Fuel economy trends
 
 ### D-087 · The demo workspace carries a real fill history

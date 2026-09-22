@@ -295,6 +295,25 @@ PUT    .../vehicles/:id/images/:imageId/primary
 odometer entries, tyre changes, purchase and sale into a single cursor-paginated,
 reverse-chronological stream of `{ occurredOn, type, title, odometer, amount, refType, refId }`.
 
+**Fleet rollup (RPT-004).** `GET /workspaces/:ws/reports/fleet?from&to` returns the same
+period as `/reports/costs`, arranged one row per vehicle:
+`{ from, to, days, currency, mixedCurrencies, fleet, vehicles[], unassigned }`. Each row in
+`vehicles` carries `total`, `share`, `distance`, `costPerDistance`, `costPerYear` and
+`compliance`, and rows are sorted most expensive first. Every "cannot say" is explicit and
+carries its reason — `ONE_READING`, `NO_MOVEMENT`, `PERIOD_TOO_SHORT`, `MIXED_CURRENCIES` —
+using the same thresholds as the single-vehicle report, including the 90-day annualisation
+floor.
+
+`compliance` is `{ state, kind, expiresOn, daysRemaining }` where `state` is `EXPIRED`,
+`DUE_SOON` (within 30 days), `OK` or `UNKNOWN`, and `kind` names whichever of `INSPECTION`,
+`INSURANCE` or `TAX` lapses first. It is derived from the latest obligation record of each
+kind, never from `reminders` (DECISIONS.md D-088). `UNKNOWN` means nothing is recorded and
+is **not** a pass.
+
+`unassigned` holds costs not attached to any vehicle. They count towards `fleet.total` but
+are excluded from every per-vehicle figure, so the vehicle rows do not sum to the fleet
+total when it is non-zero (D-089).
+
 **Fuel economy trends (RPT-003).** `GET /vehicles/:id/fuel/trend` returns
 `{ points, direction, changePercent, basis, cautions, unavailableReason, electric }`.
 `points` is one entry per calendar month, keyed `YYYY-MM`, holding that month's distance,
@@ -386,8 +405,8 @@ GET    .../maintenance/due                       workspace-wide due/overdue
 ```text
 .../vehicles/:id/inspections          GET POST      + /:id GET PATCH DELETE
 .../inspections/:id/advisories        GET POST      + /:id PATCH DELETE
-.../vehicles/:id/insurance            GET POST      + /:id GET PATCH DELETE
-.../vehicles/:id/tax                  GET POST      + /:id GET PATCH DELETE
+.../vehicles/:id/insurance-policies    GET POST      + /:id GET PATCH DELETE
+.../vehicles/:id/road-tax             GET POST      + /:id GET PATCH DELETE
 .../vehicles/:id/warranties           GET POST      + /:id GET PATCH DELETE
 .../vehicles/:id/tyres                GET POST      + /:id GET PATCH DELETE
 .../tyre-sets/:id/installations       GET POST      + /:id PATCH DELETE

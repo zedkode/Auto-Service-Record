@@ -34,7 +34,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const money = (n: number) => n.toFixed(2)
 
 /** Days between two ISO dates, inclusive of both ends. */
-function daysInclusive(from: string, to: string): number {
+export function daysInclusive(from: string, to: string): number {
   const a = Date.parse(`${from}T00:00:00Z`)
   const b = Date.parse(`${to}T00:00:00Z`)
   return Math.floor((b - a) / 86_400_000) + 1
@@ -104,7 +104,7 @@ function monthsBetween(from: string, to: string): string[] {
  * Per vehicle, because two vehicles' odometers are unrelated numbers: summing them
  * directly would be meaningless, but the distance each one covered adds up fine.
  */
-function distanceCovered(readings: readonly ReportOdometer[]) {
+export function distanceCovered(readings: readonly ReportOdometer[]) {
   if (readings.length === 0) {
     return { metres: null, reason: 'NO_READINGS' as DistanceUnavailable }
   }

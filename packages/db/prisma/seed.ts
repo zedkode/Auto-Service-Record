@@ -237,6 +237,92 @@ async function seedFuelHistory(
   }
 }
 
+/**
+ * MOT, insurance and road tax for the demo vehicles, as another idempotent pass.
+ *
+ * Without these the fleet table (RPT-004) can only say "nothing recorded" against every
+ * vehicle, and the reminder engine has nothing to fire on — three shipped features
+ * invisible in the demo data for want of a few rows. One vehicle is deliberately given a
+ * tax date inside the 30-day window, because a compliance view that is entirely green
+ * demonstrates nothing about what it does when something is due.
+ */
+async function seedObligations(
+  workspaceId: string,
+  userId: string,
+  vehicles: Array<{ id: string; registrationNumber: string | null; index: number }>,
+) {
+  for (const v of vehicles) {
+    const existing = await prisma.vehicleInspection.count({ where: { vehicleId: v.id } })
+    if (existing > 0) {
+      console.log(`  obligations already present for ${v.registrationNumber}, skipping`)
+      continue
+    }
+
+    // The second vehicle's tax runs out in three weeks; the first is comfortably valid.
+    const taxExpiresInDays = v.index === 0 ? 210 : 21
+
+    await prisma.$transaction(async (tx) => {
+      // Last year's MOT as well as the current one: the fleet view must read the CURRENT
+      // expiry, and a single row would not prove it.
+      await tx.vehicleInspection.create({
+        data: {
+          workspaceId,
+          vehicleId: v.id,
+          inspectionType: 'MOT',
+          result: 'PASS',
+          performedOn: dateOnly(daysAgo(430)),
+          expiresOn: dateOnly(daysAgo(65)),
+          centreName: 'Fosse Garage',
+          createdByUserId: userId,
+        },
+      })
+      await tx.vehicleInspection.create({
+        data: {
+          workspaceId,
+          vehicleId: v.id,
+          inspectionType: 'MOT',
+          result: 'PASS_WITH_ADVISORIES',
+          performedOn: dateOnly(daysAgo(64)),
+          expiresOn: dateOnly(daysAgo(-301)),
+          centreName: 'Fosse Garage',
+          certificateNumber: `${v.index + 1}0${Math.abs(v.index - 9)}45 8821 ${v.index}334`,
+          createdByUserId: userId,
+        },
+      })
+      await tx.insurancePolicy.create({
+        data: {
+          workspaceId,
+          vehicleId: v.id,
+          providerName: v.index === 0 ? 'Direct Line' : 'Aviva',
+          policyNumber: `POL-${v.index + 1}00${v.index + 7}-XY`,
+          coverType: 'Comprehensive',
+          startsOn: dateOnly(daysAgo(120)),
+          expiresOn: dateOnly(daysAgo(-245)),
+          premiumAmount: v.index === 0 ? '412.60' : '689.00',
+          currency: 'GBP',
+          renewalType: 'AUTOMATIC',
+          createdByUserId: userId,
+        },
+      })
+      await tx.roadTaxRecord.create({
+        data: {
+          workspaceId,
+          vehicleId: v.id,
+          countryCode: 'GB',
+          taxType: 'Vehicle Excise Duty',
+          startsOn: dateOnly(daysAgo(365 - taxExpiresInDays)),
+          expiresOn: dateOnly(daysAgo(-taxExpiresInDays)),
+          amount: v.index === 0 ? '190.00' : '415.00',
+          currency: 'GBP',
+          paymentFrequency: 'ANNUAL',
+          createdByUserId: userId,
+        },
+      })
+    })
+    console.log(`  seeded MOT, insurance and tax for ${v.registrationNumber}`)
+  }
+}
+
 async function seedServiceCategories() {
   let created = 0
   for (const [i, c] of SERVICE_CATEGORIES.entries()) {
@@ -506,6 +592,16 @@ async function main() {
         return seed ? { id: v.id, fuelType: v.fuelType, readings: seed.readings } : null
       })
       .filter((v) => v !== null),
+  )
+
+  await seedObligations(
+    workspace.id,
+    user.id,
+    demoVehicles.map((v, index) => ({
+      id: v.id,
+      registrationNumber: v.registrationNumber,
+      index,
+    })),
   )
 
   // A vehicle in the OTHER workspace — the target of the cross-tenant access tests.
