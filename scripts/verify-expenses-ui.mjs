@@ -16,6 +16,21 @@ page.on('console', (m) => {
   errs.push(t.slice(0, 140))
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
+
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
 const sql = (q) =>
   execFileSync(
     'docker',
@@ -52,7 +67,7 @@ try {
   await page.getByRole('tab', { name: 'Expenses' }).click()
   await page.waitForSelector('text=Total recorded', { timeout: 15000 })
   const soon = await page.getByText('is not built yet').count()
-  ok(soon === 0 ? 'tab renders the real panel' : 'STILL A PLACEHOLDER')
+  check(soon === 0, 'tab renders the real panel', 'STILL A PLACEHOLDER')
   await page.screenshot({ path: '/tmp/shot-expenses-empty.png' })
 
   console.log('\n[3] Record a service with a total, then check the ledger')
@@ -76,7 +91,7 @@ try {
   console.log('\n[4] A projected row offers no Remove action')
   const projectedRow = page.locator('li', { hasText: 'From service' }).first()
   const removable = await projectedRow.getByRole('button', { name: 'Remove' }).count()
-  ok(removable === 0 ? 'no Remove on a derived cost' : 'DERIVED ROW IS EDITABLE')
+  check(removable === 0, 'no Remove on a derived cost', 'DERIVED ROW IS EDITABLE')
 
   console.log('\n[5] Add a manual cost')
   await page.getByRole('button', { name: 'Add a cost' }).click()
@@ -94,7 +109,7 @@ try {
   console.log('\n[6] A manual cost CAN be removed')
   const manualRow = page.locator('li', { hasText: 'Expense UI Car Wash' }).first()
   const canRemove = await manualRow.getByRole('button', { name: 'Remove' }).count()
-  ok(canRemove > 0 ? 'Remove offered on a manual cost' : 'MANUAL ROW NOT REMOVABLE')
+  check(canRemove > 0, 'Remove offered on a manual cost', 'MANUAL ROW NOT REMOVABLE')
 
   console.log('\n[7] The dashboard spend tile shows real money')
   await page.getByRole('link', { name: 'Overview' }).first().click()
@@ -118,7 +133,7 @@ try {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(overflow ? 'HORIZONTAL SCROLL PRESENT' : 'no horizontal scroll at 390px')
+  check(!overflow, 'no horizontal scroll at 390px', 'HORIZONTAL SCROLL PRESENT')
   await page.screenshot({ path: '/tmp/shot-expenses-mobile.png' })
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 4).join(' | ') : 'none'}`)

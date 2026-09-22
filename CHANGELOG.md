@@ -13,6 +13,19 @@ changes no behaviour belongs in `TASKS.md` only.
 
 ## [Unreleased]
 
+### Added — What your vehicles actually cost
+- **A reports page** with totals by category, by vehicle and month by month, over any date
+  range you choose, for one vehicle or all of them.
+- **Cost per mile and cost per year** — the two figures that answer what owning the vehicle
+  actually costs, drawn from every service, policy, tax payment and fill together.
+- **Nothing is counted twice.** A service that carries its cost into the ledger is counted
+  once, not once per place it appears.
+- **It will not guess.** A period under three months is not stretched into a yearly figure,
+  because one service in a short window would overstate the year badly. Where a number
+  cannot be worked out honestly, the page says which one and why rather than showing a dash.
+- **Months with no spending still appear**, so the shape of a year is not distorted by
+  missing gaps.
+
 ### Added — Fuel, charging, and what your car actually returns
 - **Record every fill**, in litres, gallons or kWh, with what you paid and where.
 - **Real consumption, measured properly.** Figures are worked out between two full tanks,

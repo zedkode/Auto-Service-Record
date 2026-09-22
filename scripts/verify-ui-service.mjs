@@ -10,6 +10,21 @@ page.on('console', (m) => {
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
 
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
+
 try {
   console.log('\n[1] Sign in')
   await page.goto(D, { waitUntil: 'networkidle' })
@@ -28,7 +43,7 @@ try {
   const rows = await page.locator('text=whichever comes first').count()
   ok(`maintenance schedule rendered (${rows} combined-interval items)`)
   const disclaimer = await page.locator('text=not manufacturer specifications').count()
-  ok(disclaimer > 0 ? 'interval disclaimer shown (honest about provenance)' : 'DISCLAIMER MISSING')
+  check(disclaimer > 0, 'interval disclaimer shown (honest about provenance)', 'DISCLAIMER MISSING')
 
   console.log('\n[3] Record a service through the UI')
   await page.getByRole('button', { name: 'Add service' }).first().click()
@@ -68,7 +83,7 @@ try {
   await page.getByRole('tab', { name: 'Timeline' }).click()
   await page.waitForSelector('text=Timeline', { timeout: 10000 })
   const svcOnTimeline = await page.locator(`text=Brake fluid change ${stamp}`).count()
-  ok(svcOnTimeline > 0 ? 'service event on the timeline' : 'SERVICE MISSING FROM TIMELINE')
+  check(svcOnTimeline > 0, 'service event on the timeline', 'SERVICE MISSING FROM TIMELINE')
 
   console.log('\n[7] Overview shows real costs and maintenance')
   await page.getByRole('tab', { name: 'Overview' }).click()
@@ -92,7 +107,7 @@ try {
   const h = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(h ? 'HORIZONTAL SCROLL (bug)' : 'no horizontal scroll')
+  check(!h, 'no horizontal scroll', 'HORIZONTAL SCROLL (bug)')
 
   await page.setViewportSize({ width: 1440, height: 950 })
   await page.goto(`${D}/vehicles`, { waitUntil: 'networkidle' })

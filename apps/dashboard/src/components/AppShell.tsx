@@ -58,7 +58,6 @@ const SECTIONS: Array<{ title?: string; items: NavItem[] }> = [
         to: '/reports',
         label: copy.reports,
         icon: IconChart,
-        soon: true,
         permission: 'report:read',
       },
     ],

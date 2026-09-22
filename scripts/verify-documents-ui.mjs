@@ -19,6 +19,21 @@ page.on('console', (m) => {
   errs.push(t.slice(0, 140))
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
+
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
 const sql = (q) =>
   execFileSync(
     'docker',
@@ -56,7 +71,7 @@ try {
   await page.getByRole('tab', { name: 'Documents' }).click()
   await page.waitForSelector('text=No documents yet', { timeout: 15000 })
   const placeholder = await page.getByText('is not built yet').count()
-  ok(placeholder === 0 ? 'real vault, not a placeholder' : 'STILL A PLACEHOLDER')
+  check(placeholder === 0, 'real vault, not a placeholder', 'STILL A PLACEHOLDER')
   await page.screenshot({ path: '/tmp/shot-documents-empty.png' })
 
   console.log('\n[2] Upload a document through the browser')
@@ -115,7 +130,7 @@ try {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(overflow ? 'HORIZONTAL SCROLL PRESENT' : 'no horizontal scroll at 390px')
+  check(!overflow, 'no horizontal scroll at 390px', 'HORIZONTAL SCROLL PRESENT')
   await page.screenshot({ path: '/tmp/shot-documents-mobile.png' })
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 4).join(' | ') : 'none'}`)

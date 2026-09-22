@@ -542,15 +542,51 @@ POST   /notifications/read-all
 
 ### 6.9 Reports and dashboard
 
+**As built (RPT-001/002).**
+
 ```text
-GET    .../dashboard                           counts, attention items, recent activity
-GET    .../reports/costs                       by category / vehicle / month, date-ranged
-GET    .../reports/vehicles/:id/ownership      total cost, cost per distance, breakdown
-GET    .../reports/fuel                        economy trends per vehicle
-GET    .../reports/maintenance                 due / overdue across the workspace
-POST   .../exports                             async export job → 202 + job id   (P2)
-GET    .../exports/:id                         status + signed download when ready (P2)
+GET /workspaces/:ws/reports/costs   report:read   ?from= &to= &vehicleId=
 ```
+
+Defaults to year to date. `report:read` is deliberately absent from DRIVER, who sees no
+financial data (ARCHITECTURE.md §5.1 note 2).
+
+Reads `expenses` and nothing else for money — the single cost surface — so a service is
+counted once through its projection rather than twice (DECISIONS.md D-058). Distance comes
+from `odometer_entries`, which is append-only, so the mileage behind a per-mile figure is
+evidence rather than a current-value snapshot.
+
+```json
+{ "total": "1470.00", "currency": "GBP", "mixedCurrencies": false, "entries": 6, "days": 365,
+  "byCategory": [ { "key": "servicing", "name": "Servicing & repairs", "total": "600.00", "share": 40.82 } ],
+  "byVehicle":  [ { "vehicleId": "…", "name": "Ford Mondeo", "total": "1470.00", "share": 100 } ],
+  "byMonth":    [ { "month": "2026-01", "total": "0.00", "count": 0 } ],
+  "distance": { "kilometres": 6000, "miles": 3728.23, "unavailableReason": null },
+  "costPerDistance": { "perMile": "0.394", "perKilometre": "0.245", "unavailableReason": null },
+  "costPerYear": { "amount": "1470.00", "projected": false, "unavailableReason": null } }
+```
+
+**Every month in the period gets a bucket**, including months with no spend: a chart with
+missing months lies about the shape of spending.
+
+**Shares are computed server-side** so a bar chart needs no arithmetic of its own.
+
+**Distance is summed per vehicle**, never across them — two odometers are unrelated numbers
+(D-077). Odometer corrections are excluded: a correction restates a reading rather than
+recording travel.
+
+**Figures that cannot be produced honestly are null with a reason**, never a dash:
+
+| Field | `unavailableReason` | Meaning |
+| --- | --- | --- |
+| `distance`, `costPerDistance` | `NO_READINGS` | no mileage recorded in the period |
+| | `ONE_READING` | a single reading cannot bound a distance |
+| | `NO_MOVEMENT` | the mileage did not change |
+| `costPerDistance`, `costPerYear` | `MIXED_CURRENCIES` | more than one currency (D-054) |
+| `costPerYear` | `PERIOD_TOO_SHORT` | under 90 days; extrapolating lumpy costs would overstate the year (D-078) |
+
+`costPerYear.projected` is true when the period is between 90 days and a year, so the UI
+can say "at this rate" instead of stating it as fact.
 
 ### 6.10 Admin — `/admin` (separate auth realm)
 

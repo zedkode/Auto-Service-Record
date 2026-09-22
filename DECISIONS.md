@@ -28,6 +28,39 @@ referencing the old one.
 
 ---
 
+---
+
+## 2026-09-22 — Cost reports
+
+### D-079 · A failing check in a verification script must fail the script
+The scripts used `ok(cond ? 'good' : 'BAD')`, which printed a tick beside the failure text
+and left the exit code at zero. **Why this is a decision and not a typo:** 38 such checks
+existed across 12 scripts, so every "Errors: none" those scripts reported was weaker than
+it looked — a broken expectation was indistinguishable from a met one unless somebody read
+the output closely. They now call `check(condition, good, bad)`, which prints a cross,
+records the failure and sets the exit code. **Consequence:** ten of the converted checks
+had the failure text on the *true* branch and had to be inverted; the mobile-overflow
+checks were all of this shape. Nothing genuine was hidden — the sweep found two console
+errors that turned out to be deliberately provoked — but that was luck, not design.
+
+### D-078 · A period under 90 days is never annualised
+`costPerYear` returns null with `PERIOD_TOO_SHORT` rather than extrapolating. **Why:**
+vehicle costs are lumpy. One service or one insurance renewal inside a six-week window
+projects to a wildly overstated year, and the figure looks authoritative precisely because
+it is precise. **Alternatives:** annualising with a caveat, which nobody reads; or picking
+a shorter threshold, which only moves the line. **Consequence:** a full year is reported
+as measured, a period between 90 days and a year is flagged `projected: true`, and the UI
+says "at this rate" rather than stating it as fact.
+
+### D-077 · Distance is summed per vehicle, never across them
+The report measures each vehicle's own odometer span and adds those, rather than taking
+max minus min over all readings. **Why:** two vehicles' odometers are unrelated numbers.
+A workspace with a car at 12,000 km and another at 93,000 would otherwise report 81,000 km
+of travel that nobody drove. **Consequence:** a vehicle with a single reading in the period
+contributes nothing rather than corrupting the total, and odometer *corrections* are
+excluded entirely — a correction restates a past reading rather than recording travel, so
+counting it would invent distance.
+
 ## 2026-09-22 — Fuel and consumption
 
 ### D-076 · A fill is also a mileage reading

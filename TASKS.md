@@ -39,8 +39,8 @@ specifying it twice.
 | 0 — Specification | 7 | 7 | 0 | 0 | 0 | 0 | 0 |
 | 1 — Foundation | 22 | 20 | 1 | 0 | 0 | 0 | 1 |
 | 2 — Auth & tenancy | 21 | 18 | 2 | 1 | 0 | 0 | 0 |
-| 3–12 — Later phases | 92 | 39 | 0 | 0 | 0 | 9 | 44 |
-| **Total** | **142** | **84** | **3** | **1** | **0** | **9** | **45** |
+| 3–12 — Later phases | 92 | 42 | 0 | 0 | 0 | 9 | 41 |
+| **Total** | **142** | **87** | **3** | **1** | **0** | **9** | **42** |
 
 Phase 1 is complete except `CORE-021` (production Dockerfiles), deliberately deferred —
 it is not needed to run locally. `CORE-020` (CI) is now unblocked: `lint`, `typecheck`,
@@ -100,11 +100,20 @@ source that did not reach the expense ledger, so a vehicle's total cost of owner
 now complete. Consumption is computed tank to tank by a pure engine with 23 unit tests;
 `RPT-003` (fuel economy trends) is unblocked.
 
-**Next recommended task:** `RPT-001` (cost aggregation) — `/expenses/summary` already
-groups by category and vehicle, so the report is largely presentation over an existing
-query, and every cost source now feeds it. Then `HARD-003` (document pipeline penetration
-review), `WS-006` (per-member notification preferences), or `VEH-003` (archival and soft
-delete), which is the last obvious gap in the vehicle lifecycle.
+`RPT-001`, `RPT-002` and `RPT-005` are `DONE`. The report answers the question `INIT.md`
+§1 poses — what a vehicle has cost, per mile and per year — and refuses to answer when the
+data cannot support it, naming which figure is missing and why.
+
+**A flaw in the verification scripts was found and fixed this session.** 38 checks across
+12 scripts used `ok(cond ? 'good' : 'BAD')`, which printed a tick beside failure text and
+left the exit code at zero, so their "Errors: none" verdicts were weaker than they read.
+All now use a `check()` that fails properly (DECISIONS.md D-079). The sweep afterwards
+surfaced two console errors, both of which turned out to be deliberately provoked — but
+that was luck, not design.
+
+**Next recommended task:** `HARD-003` (document pipeline penetration review), `VEH-003`
+(archival and soft delete — the last obvious gap in the vehicle lifecycle), or `RPT-003`
+(fuel economy trends), which is a small addition now that both fuel and reports exist.
 
 `OWN-001`, `OWN-002` and `OWN-003` delivered inspections with advisories, insurance
 policies and road tax, each with an expiry feeding the reminder engine through
@@ -1300,11 +1309,11 @@ All are `BACKLOG` until their phase begins.
 ### Phase 10 — Reports & export
 | ID | Title | Status | Priority | Depends on |
 | --- | --- | --- | --- | --- |
-| RPT-001 | Cost aggregation by category, vehicle and period | BACKLOG | HIGH | OWN-008 
-| RPT-002 | Ownership cost and cost per distance | BACKLOG | HIGH | RPT-001 
+| RPT-001 | Cost aggregation by category, vehicle and period | DONE | HIGH | OWN-008 
+| RPT-002 | Ownership cost and cost per distance | DONE | HIGH | RPT-001 
 | RPT-003 | Fuel economy trends | BACKLOG | MEDIUM | OWN-006 
 | RPT-004 | Workspace and fleet rollups | BACKLOG | MEDIUM | RPT-001 
-| RPT-005 | Report UI with date-range filtering | BACKLOG | HIGH | RPT-001 
+| RPT-005 | Report UI with date-range filtering | DONE | HIGH | RPT-001 
 | EXP-001 | Async export jobs (CSV, JSON) | BACKLOG | MEDIUM | RPT-001 
 | EXP-002 | PDF vehicle history export | BACKLOG | MEDIUM | EXP-001 
 

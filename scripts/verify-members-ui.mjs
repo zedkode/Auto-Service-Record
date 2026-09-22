@@ -23,6 +23,21 @@ page.on('console', (m) => {
   errs.push(t.slice(0, 140))
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
+
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
 const sql = (q) =>
   execFileSync(
     'docker',
@@ -63,7 +78,7 @@ try {
   await page.getByRole('link', { name: 'Members' }).first().click()
   await page.waitForSelector('text=Current members', { timeout: 15000 })
   const stale = await page.getByText('Invitations arrive in Phase 8').count()
-  ok(stale === 0 ? 'members page no longer says invitations are unavailable' : 'STALE COPY')
+  check(stale === 0, 'members page no longer says invitations are unavailable', 'STALE COPY')
   await page.screenshot({ path: '/tmp/shot-members.png' })
 
   console.log('\n[2] Invite someone through the UI')
@@ -80,7 +95,7 @@ try {
   console.log('\n[3] It appears as pending')
   await page.waitForSelector('text=Pending invitations', { timeout: 10000 })
   const listed = await page.getByText(guestEmail).count()
-  ok(listed > 0 ? 'listed under pending invitations' : 'NOT LISTED')
+  check(listed > 0, 'listed under pending invitations', 'NOT LISTED')
 
   console.log('\n[4] The invited person accepts, in their own browser')
   let token = null
@@ -105,7 +120,7 @@ try {
   // They have no account yet, so they land on sign-in; register instead.
   await guest.waitForTimeout(1500)
   const needsAccount = await guest.getByText(/Sign in|Create your account/i).count()
-  ok(needsAccount > 0 ? 'an invited stranger is asked to sign in first' : 'NO AUTH WALL')
+  check(needsAccount > 0, 'an invited stranger is asked to sign in first', 'NO AUTH WALL')
   await guest.screenshot({ path: '/tmp/shot-invitation-signin.png' })
   await guestCtx.close()
 
@@ -119,7 +134,7 @@ try {
   const revoked = sql(
     `SELECT revoked_at IS NOT NULL FROM workspace_invitations WHERE email='${guestEmail}';`,
   )
-  ok(revoked === 't' ? 'revoked from the UI and recorded' : 'REVOKE DID NOT PERSIST')
+  check(revoked === 't', 'revoked from the UI and recorded', 'REVOKE DID NOT PERSIST')
 
   console.log('\n[6] Mobile width')
   await page.setViewportSize({ width: 390, height: 844 })
@@ -127,7 +142,7 @@ try {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(overflow ? 'HORIZONTAL SCROLL' : 'no horizontal scroll at 390px')
+  check(!overflow, 'no horizontal scroll at 390px', 'HORIZONTAL SCROLL')
   await page.screenshot({ path: '/tmp/shot-members-mobile.png' })
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)

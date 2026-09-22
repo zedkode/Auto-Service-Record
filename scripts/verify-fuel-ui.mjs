@@ -16,6 +16,21 @@ page.on('console', (m) => {
   errs.push(t.slice(0, 140))
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
+
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
 const sql = (q) =>
   execFileSync(
     'docker',
@@ -59,11 +74,11 @@ try {
   await page.getByRole('tab', { name: 'Fuel' }).click()
   await page.waitForSelector('text=Fill history', { timeout: 15000 })
   const placeholder = await page.getByText('is not built yet').count()
-  ok(placeholder === 0 ? 'real panel rendered' : 'STILL A PLACEHOLDER')
+  check(placeholder === 0, 'real panel rendered', 'STILL A PLACEHOLDER')
 
   console.log('\n[2] With no data it explains why, instead of showing a blank')
   const explained = await page.getByText('Record a fill to start tracking').count()
-  ok(explained > 0 ? 'empty state explains what is needed' : 'NO EXPLANATION')
+  check(explained > 0, 'empty state explains what is needed', 'NO EXPLANATION')
   await page.screenshot({ path: '/tmp/shot-fuel-empty.png' })
 
   console.log('\n[3] One full fill: still honest about not knowing yet')
@@ -97,7 +112,7 @@ try {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(overflow ? 'HORIZONTAL SCROLL' : 'no horizontal scroll at 390px')
+  check(!overflow, 'no horizontal scroll at 390px', 'HORIZONTAL SCROLL')
   await page.screenshot({ path: '/tmp/shot-fuel-mobile.png' })
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)

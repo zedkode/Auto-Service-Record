@@ -17,6 +17,21 @@ const pageErrors = []
 const log = (s) => console.log(s)
 const ok = (s) => console.log(`  ✓ ${s}`)
 
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
+
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
 const page = await ctx.newPage()
@@ -46,7 +61,7 @@ try {
   ok('Ford Mondeo and BMW 530d rendered from the API')
 
   const attention = await page.locator('text=Attention required').count()
-  ok(attention > 0 ? 'attention panel shown (stale mileage detected)' : 'no attention items')
+  check(attention > 0, 'attention panel shown (stale mileage detected)', 'no attention items')
 
   log('\n[4] Add a vehicle')
   await page.getByRole('link', { name: 'Add vehicle' }).first().click()
@@ -63,7 +78,7 @@ try {
   ok('vehicle created and redirected to its detail page')
 
   const mileageShown = await page.locator('text=88,500').count()
-  ok(mileageShown > 0 ? 'initial odometer reading persisted (88,500)' : 'MILEAGE NOT SHOWN')
+  check(mileageShown > 0, 'initial odometer reading persisted (88,500)', 'MILEAGE NOT SHOWN')
 
   log('\n[5] Update mileage')
   await page.click('button:has-text("Add mileage") >> nth=0')
@@ -89,7 +104,7 @@ try {
   const alertText = await page.textContent('[role="alert"]')
   ok(`server rejected: "${alertText?.slice(0, 90)}…"`)
   const correctionShown = await page.locator('text=Reason for the correction').count()
-  ok(correctionShown > 0 ? 'correction path offered' : 'correction path MISSING')
+  check(correctionShown > 0, 'correction path offered', 'correction path MISSING')
   await page.click('button:has-text("Cancel")')
 
   log('\n[8] Timeline')
@@ -105,9 +120,9 @@ try {
   const hScroll = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(hScroll ? 'HORIZONTAL SCROLL PRESENT (bug)' : 'no horizontal scroll at 375px')
+  check(!hScroll, 'no horizontal scroll at 375px', 'HORIZONTAL SCROLL PRESENT (bug)')
   const tabbar = await page.locator('nav[aria-label="Primary"]').count()
-  ok(tabbar > 0 ? 'mobile tab bar present' : 'mobile tab bar missing')
+  check(tabbar > 0, 'mobile tab bar present', 'mobile tab bar missing')
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(DASH, { waitUntil: 'networkidle' })
@@ -116,15 +131,25 @@ try {
   ok('screenshot saved: /tmp/dashboard-overview.png')
 
   log('\n=== Console errors ===')
-  const noise = consoleErrors.filter((e) => !e.includes('favicon') && !e.includes('404'))
+  /**
+   * Two failures are provoked on purpose and are the point of their steps: the session
+   * probe before sign-in (401) and the odometer regression this script deliberately
+   * triggers (409). Filtering them is what lets "no console errors" mean something —
+   * otherwise every run reports noise and nobody reads the line.
+   */
+  const noise = consoleErrors.filter(
+    (e) => !e.includes('favicon') && !e.includes('404') && !e.includes('401') && !e.includes('409'),
+  )
   if (noise.length === 0 && pageErrors.length === 0) {
     ok('no console or page errors')
   } else {
-    noise.slice(0, 10).forEach((e) => console.log(`  ✗ console: ${e.slice(0, 160)}`))
-    pageErrors.slice(0, 10).forEach((e) => console.log(`  ✗ pageerror: ${e.slice(0, 160)}`))
+    noise.slice(0, 10).forEach((e) => console.error(`  \u2717 console: ${e.slice(0, 160)}`))
+    pageErrors.slice(0, 10).forEach((e) => console.error(`  \u2717 pageerror: ${e.slice(0, 160)}`))
+    // Unexpected console output is a failure, not a footnote.
+    process.exitCode = 1
   }
 
-  log('\nVERIFICATION COMPLETE')
+  log(process.exitCode ? '\nVERIFICATION FOUND PROBLEMS' : '\nVERIFICATION COMPLETE')
 } catch (err) {
   console.error('\nVERIFICATION FAILED:', err.message)
   await page.screenshot({ path: '/tmp/failure.png', fullPage: true }).catch(() => {})

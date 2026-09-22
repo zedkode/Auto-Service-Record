@@ -2,6 +2,7 @@ import type { ApiClient } from './client.js'
 import type {
   Advisory,
   AppNotification,
+  CostReport,
   CostSummaryRow,
   CurrentOdometer,
   DashboardData,
@@ -267,6 +268,17 @@ export function createApi(client: ApiClient) {
         client.post<{ workspaceId: string; alreadyMember: boolean }>('/invitations/accept', {
           token,
         }),
+    },
+
+    reports: {
+      costs: (ws: string, params: { from?: string; to?: string; vehicleId?: string } = {}) => {
+        const q = new URLSearchParams()
+        if (params.from) q.set('from', params.from)
+        if (params.to) q.set('to', params.to)
+        if (params.vehicleId) q.set('vehicleId', params.vehicleId)
+        const qs = q.toString()
+        return client.get<CostReport>(`/workspaces/${ws}/reports/costs${qs ? `?${qs}` : ''}`)
+      },
     },
 
     fuel: {

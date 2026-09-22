@@ -38,6 +38,21 @@ page.on('console', (m) => {
 const ok = (s) => console.log(`  ✓ ${s}`)
 
 /**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
+
+/**
  * The table element only exists once there are rows, so a bare waitForSelector('table')
  * can match the PREVIOUS route's table during client-side navigation and count zero.
  * Wait for a real row (or a genuine empty state) belonging to the page we are on.
@@ -160,10 +175,10 @@ try {
   const stillThere = psql(
     `SELECT released_at IS NOT NULL FROM email_suppressions WHERE email = '${SUP}';`,
   )
-  ok(
-    stillThere === 't'
-      ? 'released from the UI, and the row is kept as history'
-      : 'RELEASE DID NOT KEEP HISTORY',
+  check(
+    stillThere === 't',
+    'released from the UI, and the row is kept as history',
+    'RELEASE DID NOT KEEP HISTORY',
   )
   psql(`DELETE FROM email_suppressions WHERE email = '${SUP}';`)
 
@@ -183,9 +198,9 @@ try {
   const grantRows = await settledRows(page)
   ok(`register rendered with ${grantRows} grant(s)`)
   const explains = await page.getByText('every use is recorded').count()
-  ok(explains > 0 ? 'page states that every use is recorded' : 'EXPLANATION MISSING')
+  check(explains > 0, 'page states that every use is recorded', 'EXPLANATION MISSING')
   const reasonShown = await page.getByText('cannot find their MOT certificate').count()
-  ok(reasonShown > 0 ? 'the written reason is shown in full' : 'REASON HIDDEN')
+  check(reasonShown > 0, 'the written reason is shown in full', 'REASON HIDDEN')
   await page.screenshot({ path: '/tmp/shot-support-access.png' })
 
   await page.getByRole('button', { name: 'Revoke' }).first().click()
@@ -198,10 +213,10 @@ try {
   const stillLive = psql(
     `SELECT count(*) FROM support_access_grants WHERE revoked_at IS NULL AND expires_at > now();`,
   )
-  ok(
-    stillLive === '0'
-      ? 'revoked from the console, and recorded as revoked'
-      : 'REVOKE DID NOT PERSIST',
+  check(
+    stillLive === '0',
+    'revoked from the console, and recorded as revoked',
+    'REVOKE DID NOT PERSIST',
   )
 
   console.log('\n[8] Signing out ends the session')
@@ -209,7 +224,7 @@ try {
   await page.getByRole('button', { name: 'Sign out' }).click()
   await page.waitForSelector('text=Operations console', { timeout: 15000 })
   const backIn = await page.locator('input[name="totpCode"]').count()
-  ok(backIn > 0 ? 'returned to sign-in, session cleared' : 'STILL SIGNED IN')
+  check(backIn > 0, 'returned to sign-in, session cleared', 'STILL SIGNED IN')
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 4).join(' | ') : 'none'}`)
   console.log(errs.length ? '\nADMIN UI HAS ERRORS\n' : '\nADMIN UI VERIFIED')

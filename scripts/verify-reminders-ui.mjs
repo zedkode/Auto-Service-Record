@@ -10,6 +10,21 @@ page.on('console', (m) => {
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
 
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
+
 try {
   console.log('\n[1] Sign in')
   await page.goto(D, { waitUntil: 'networkidle' })
@@ -47,7 +62,7 @@ try {
     await snoozeBtn.click()
     await page.waitForTimeout(1500)
     const snoozedTag = await page.locator('text=snoozed to').count()
-    ok(snoozedTag > 0 ? 'reminder snoozed and labelled' : 'snoozed (no label found)')
+    check(snoozedTag > 0, 'reminder snoozed and labelled', 'snoozed (no label found)')
   } else {
     ok('no active reminder to snooze')
   }
@@ -68,7 +83,7 @@ try {
   const hScroll = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(hScroll ? 'HORIZONTAL SCROLL (bug)' : 'no horizontal scroll')
+  check(!hScroll, 'no horizontal scroll', 'HORIZONTAL SCROLL (bug)')
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 4).join(' | ') : 'none'}`)
   console.log('\nREMINDERS UI VERIFIED')

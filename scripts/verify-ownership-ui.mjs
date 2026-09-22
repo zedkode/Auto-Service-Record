@@ -17,6 +17,21 @@ page.on('console', (m) => {
   errs.push(text.slice(0, 140))
 })
 const ok = (s) => console.log(`  ✓ ${s}`)
+
+/**
+ * Asserts a condition. A failing check must FAIL: the earlier shape,
+ * `ok(cond ? 'good' : 'BAD')`, printed a tick beside the failure text and left the exit
+ * code at zero, so a broken expectation looked like a passing one.
+ */
+const check = (condition, good, bad) => {
+  if (condition) {
+    console.log(`  \u2713 ${good}`)
+  } else {
+    console.error(`  \u2717 ${bad}`)
+    errs.push(bad)
+    process.exitCode = 1
+  }
+}
 const sql = (q) =>
   execFileSync(
     'docker',
@@ -82,14 +97,14 @@ try {
 
   console.log('\n[4] Status reflects the server, and advisories appear')
   const dueSoon = await page.getByText('Due soon').count()
-  ok(dueSoon > 0 ? 'expiring certificate shows "Due soon"' : 'STATUS BADGE MISSING')
+  check(dueSoon > 0, 'expiring certificate shows "Due soon"', 'STATUS BADGE MISSING')
   const daysLeft = await page
     .getByText(/\d+ days left/)
     .first()
     .textContent()
   ok(`countdown rendered: "${daysLeft?.trim()}"`)
   const advisory = await page.getByText('Front brake disc worn').count()
-  ok(advisory > 0 ? 'advisory listed' : 'ADVISORY MISSING')
+  check(advisory > 0, 'advisory listed', 'ADVISORY MISSING')
 
   console.log('\n[5] Resolve the advisory')
   await page.getByRole('button', { name: 'Mark done' }).first().click()
@@ -107,7 +122,7 @@ try {
   await dlg().getByRole('button', { name: 'Save' }).click()
   await page.waitForSelector('text=UI Test Insurer', { timeout: 15000 })
   const premium = await page.getByText('£499.99 premium').count()
-  ok(premium > 0 ? 'premium formatted as currency for an OWNER' : 'PREMIUM NOT SHOWN')
+  check(premium > 0, 'premium formatted as currency for an OWNER', 'PREMIUM NOT SHOWN')
 
   console.log('\n[7] Validation errors surface, they are not swallowed')
   expectRejection = true
@@ -127,7 +142,7 @@ try {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   )
-  ok(overflow ? 'HORIZONTAL SCROLL PRESENT' : 'no horizontal scroll at 390px')
+  check(!overflow, 'no horizontal scroll at 390px', 'HORIZONTAL SCROLL PRESENT')
   await page.screenshot({ path: '/tmp/shot-ownership-mobile.png' })
 
   console.log(`\nErrors: ${errs.length ? errs.slice(0, 4).join(' | ') : 'none'}`)

@@ -585,3 +585,41 @@ export interface FuelEconomy {
   unavailableReason: 'NO_FILLS' | 'ONE_FULL_FILL' | 'NO_USABLE_INTERVAL' | null
   fillCount: number
 }
+
+// --- reports (RPT-001/002) ---
+
+export interface CostReport {
+  from: string
+  to: string
+  days: number
+  total: string
+  currency: string | null
+  mixedCurrencies: boolean
+  entries: number
+  byCategory: Array<{ key: string; name: string; total: string; count: number; share: number }>
+  byVehicle: Array<{
+    vehicleId: string | null
+    name: string
+    total: string
+    count: number
+    share: number
+  }>
+  byMonth: Array<{ month: string; total: string; count: number }>
+  distance: {
+    metres: number | null
+    miles: number | null
+    kilometres: number | null
+    unavailableReason: 'NO_READINGS' | 'ONE_READING' | 'NO_MOVEMENT' | null
+  }
+  costPerDistance: {
+    perMile: string | null
+    perKilometre: string | null
+    unavailableReason: 'NO_READINGS' | 'ONE_READING' | 'NO_MOVEMENT' | 'MIXED_CURRENCIES' | null
+  }
+  costPerYear: {
+    amount: string | null
+    /** True when the period is shorter than a year, so the figure is a projection. */
+    projected: boolean
+    unavailableReason: 'PERIOD_TOO_SHORT' | 'MIXED_CURRENCIES' | null
+  }
+}
